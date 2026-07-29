@@ -1,0 +1,382 @@
+use serde::{Deserialize, Serialize};
+use tauri::State;
+
+use crate::error::{CoreError, CoreResult};
+use crate::state::AppState;
+
+/// Source verification against open scholarly registries.
+///
+/// This is the *only* module in the application that performs outbound network
+/// requests, and the only data it may send is what `SourceQuery` can hold: a
+/// DOI, a title, a first-author surname and a year. No report sentence, claim or
+/// student rationale is ever part of a request.
+const ALLOWED_HOSTS: [&str; 2] = ["api.crossref.org", "api.openalex.org"];
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceQuery {
+    #[serde(default)]
+    pub doi: Option<String>,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub first_author: Option<String>,
+    #[serde(default)]
+    pub year: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthenticityVerdict {
+    pub status: String,
+    pub score: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub matched_title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub publisher: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container_title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub year: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cited_by_count: Option<i64>,
+    pub is_retracted: bool,
+    pub is_indexed_in_doaj: bool,
+    pub registries: Vec<String>,
+    pub flags: Vec<String>,
+    pub checked_at: String,
+}
+
+#[derive(Default)]
+struct Record {
+    title: Option<String>,
+    publisher: Option<String>,
+    container_title: Option<String>,
+    year: Option<i64>,
+    cited_by_count: Option<i64>,
+    retracted: bool,
+    in_doaj: bool,
+}
+
+fn guard_host(url: &str) -> CoreResult<()> {
+    let parsed = url::Url::parse(url).map_err(|error| CoreError::msg(error.to_string()))?;
+    let host = parsed.host_str().unwrap_or_default();
+    if !ALLOWED_HOSTS.contains(&host) {
+        return Err(CoreError::PrivacyPolicy(format!(
+            "host `{host}` is not on the metadata allow-list"
+        )));
+    }
+    Ok(())
+}
+
+async fn get_json(state: &AppState, url: &str) -> CoreResult<Option<serde_json::Value>> {
+    guard_host(url)?;
+    let response = state.http.get(url).send().await?;
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    if !response.status().is_success() {
+        return Err(CoreError::Http(format!(
+            "{} returned {}",
+            url,
+            response.status()
+        )));
+    }
+    Ok(Some(response.json::<serde_json::Value>().await?))
+}
+
+fn normalise(value: &str) -> String {
+    value
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { ' ' })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Token-overlap ratio between two titles, 0.0..1.0.
+fn title_match(a: &str, b: &str) -> f64 {
+    let left: Vec<String> = normalise(a).split(' ').map(str::to_string).collect();
+    let right: Vec<String> = normalise(b).split(' ').map(str::to_string).collect();
+    if left.is_empty() || right.is_empty() {
+        return 0.0;
+    }
+    let shared = left.iter().filter(|token| right.contains(token)).count();
+    shared as f64 / left.len().max(right.len()) as f64
+}
+
+fn crossref_record(work: &serde_json::Value) -> Record {
+    let year = work["issued"]["date-parts"][0][0]
+        .as_i64()
+        .or_else(|| work["published"]["date-parts"][0][0].as_i64());
+    Record {
+        title: work["title"][0].as_str().map(str::to_string),
+        publisher: work["publisher"].as_str().map(str::to_string),
+        container_title: work["container-title"][0].as_str().map(str::to_string),
+        year,
+        cited_by_count: work["is-referenced-by-count"].as_i64(),
+        // Crossref marks retractions through update relationships / work type.
+        retracted: work["update-to"]
+            .as_array()
+            .map(|updates| {
+                updates.iter().any(|update| {
+                    update["type"]
+                        .as_str()
+                        .map(|kind| kind.contains("retraction"))
+                        .unwrap_or(false)
+                })
+            })
+            .unwrap_or(false)
+            || work["type"].as_str() == Some("retraction"),
+        in_doaj: false,
+    }
+}
+
+fn openalex_record(work: &serde_json::Value) -> Record {
+    let source = &work["primary_location"]["source"];
+    Record {
+        title: work["display_name"].as_str().map(str::to_string),
+        publisher: source["host_organization_name"].as_str().map(str::to_string),
+        container_title: source["display_name"].as_str().map(str::to_string),
+        year: work["publication_year"].as_i64(),
+        cited_by_count: work["cited_by_count"].as_i64(),
+        retracted: work["is_retracted"].as_bool().unwrap_or(false),
+        in_doaj: source["is_in_doaj"].as_bool().unwrap_or(false),
+    }
+}
+
+fn encode(value: &str) -> String {
+    // Minimal percent-encoding for query strings.
+    value
+        .chars()
+        .flat_map(|c| {
+            if c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | '~') {
+                vec![c]
+            } else {
+                format!("%{:02X}", c as u32 as u8).chars().collect()
+            }
+        })
+        .collect()
+}
+
+async fn lookup_crossref(state: &AppState, query: &SourceQuery) -> CoreResult<Option<Record>> {
+    if let Some(doi) = query.doi.as_ref() {
+        let url = format!("https://api.crossref.org/works/{}", encode(doi.trim()));
+        return Ok(get_json(state, &url)
+            .await?
+            .map(|body| crossref_record(&body["message"])));
+    }
+
+    let Some(title) = query.title.as_ref() else {
+        return Ok(None);
+    };
+    let mut url = format!(
+        "https://api.crossref.org/works?rows=3&select=title,publisher,container-title,issued,is-referenced-by-count,type,update-to&query.bibliographic={}",
+        encode(title.trim())
+    );
+    if let Some(author) = query.first_author.as_ref() {
+        url.push_str(&format!("&query.author={}", encode(author.trim())));
+    }
+
+    let Some(body) = get_json(state, &url).await? else {
+        return Ok(None);
+    };
+    let best = body["message"]["items"]
+        .as_array()
+        .and_then(|items| {
+            items
+                .iter()
+                .map(|item| {
+                    let candidate = item["title"][0].as_str().unwrap_or_default();
+                    (title_match(title, candidate), item)
+                })
+                .max_by(|a, b| a.0.total_cmp(&b.0))
+        })
+        .filter(|(score, _)| *score >= 0.6)
+        .map(|(_, item)| crossref_record(item));
+    Ok(best)
+}
+
+async fn lookup_openalex(state: &AppState, query: &SourceQuery) -> CoreResult<Option<Record>> {
+    if let Some(doi) = query.doi.as_ref() {
+        let url = format!("https://api.openalex.org/works/doi:{}", encode(doi.trim()));
+        return Ok(get_json(state, &url).await?.map(|body| openalex_record(&body)));
+    }
+
+    let Some(title) = query.title.as_ref() else {
+        return Ok(None);
+    };
+    let url = format!(
+        "https://api.openalex.org/works?per-page=3&filter=title.search:{}",
+        encode(title.trim())
+    );
+    let Some(body) = get_json(state, &url).await? else {
+        return Ok(None);
+    };
+    let best = body["results"]
+        .as_array()
+        .and_then(|items| {
+            items
+                .iter()
+                .map(|item| {
+                    let candidate = item["display_name"].as_str().unwrap_or_default();
+                    (title_match(title, candidate), item)
+                })
+                .max_by(|a, b| a.0.total_cmp(&b.0))
+        })
+        .filter(|(score, _)| *score >= 0.6)
+        .map(|(_, item)| openalex_record(item));
+    Ok(best)
+}
+
+/// Verify one source. Returns a verdict rather than an error for "not found",
+/// because an unfindable citation is a finding, not a failure.
+#[tauri::command]
+pub async fn verify_source(
+    state: State<'_, AppState>,
+    query: SourceQuery,
+) -> CoreResult<AuthenticityVerdict> {
+    let checked_at = chrono::Utc::now().to_rfc3339();
+    let mut registries: Vec<String> = Vec::new();
+    let mut flags: Vec<String> = Vec::new();
+
+    let crossref = match lookup_crossref(&state, &query).await {
+        Ok(record) => record,
+        Err(error) => {
+            flags.push(format!("Crossref lookup failed: {error}"));
+            None
+        }
+    };
+    if crossref.is_some() {
+        registries.push("crossref".into());
+    }
+
+    let openalex = match lookup_openalex(&state, &query).await {
+        Ok(record) => record,
+        Err(error) => {
+            flags.push(format!("OpenAlex lookup failed: {error}"));
+            None
+        }
+    };
+    if openalex.is_some() {
+        registries.push("openalex".into());
+    }
+
+    let merged = match (&crossref, &openalex) {
+        (Some(cr), Some(oa)) => Record {
+            title: cr.title.clone().or_else(|| oa.title.clone()),
+            publisher: cr.publisher.clone().or_else(|| oa.publisher.clone()),
+            container_title: cr
+                .container_title
+                .clone()
+                .or_else(|| oa.container_title.clone()),
+            year: cr.year.or(oa.year),
+            cited_by_count: oa.cited_by_count.or(cr.cited_by_count),
+            retracted: cr.retracted || oa.retracted,
+            in_doaj: oa.in_doaj,
+        },
+        (Some(record), None) | (None, Some(record)) => Record {
+            title: record.title.clone(),
+            publisher: record.publisher.clone(),
+            container_title: record.container_title.clone(),
+            year: record.year,
+            cited_by_count: record.cited_by_count,
+            retracted: record.retracted,
+            in_doaj: record.in_doaj,
+        },
+        (None, None) => {
+            let has_query = query.doi.is_some() || query.title.is_some();
+            return Ok(AuthenticityVerdict {
+                status: if has_query { "notFound".into() } else { "unverified".into() },
+                score: if has_query { 10 } else { 50 },
+                matched_title: None,
+                publisher: None,
+                container_title: None,
+                year: None,
+                cited_by_count: None,
+                is_retracted: false,
+                is_indexed_in_doaj: false,
+                registries,
+                flags: {
+                    flags.push(if has_query {
+                        "Neither Crossref nor OpenAlex holds a record matching this reference. Treat as potentially hallucinated or predatory until the student produces the source."
+                            .into()
+                    } else {
+                        "Not enough metadata to run a lookup.".into()
+                    });
+                    flags
+                },
+                checked_at,
+            });
+        }
+    };
+
+    // Scoring: start from "indexed somewhere", then reward corroboration.
+    let mut score: i64 = 62;
+    if registries.len() == 2 {
+        score += 14;
+    } else {
+        flags.push(format!(
+            "Only {} holds a record for this source.",
+            registries.first().cloned().unwrap_or_default()
+        ));
+    }
+    if merged.publisher.is_some() {
+        score += 8;
+    } else {
+        flags.push("No publisher is recorded for this source.".into());
+    }
+    if merged.in_doaj {
+        score += 6;
+    }
+    if merged.cited_by_count.unwrap_or(0) >= 5 {
+        score += 6;
+    }
+
+    if let (Some(claimed), Some(found)) = (query.year, merged.year) {
+        if (claimed - found).abs() > 1 {
+            score -= 12;
+            flags.push(format!(
+                "Year mismatch: the report cites {claimed}, the registry records {found}."
+            ));
+        }
+    }
+    if let (Some(claimed), Some(found)) = (query.title.as_ref(), merged.title.as_ref()) {
+        let ratio = title_match(claimed, found);
+        if ratio < 0.75 {
+            score -= 16;
+            flags.push(format!(
+                "Title differs from the registry record (overlap {:.0}%): \"{}\".",
+                ratio * 100.0,
+                found
+            ));
+        }
+    }
+
+    let mut status = "verified";
+    if merged.retracted {
+        status = "suspicious";
+        score = score.min(30);
+        flags.push("This work is marked as retracted. It must not be used as supporting evidence.".into());
+    }
+    if score < 55 {
+        status = "suspicious";
+    }
+
+    Ok(AuthenticityVerdict {
+        status: status.into(),
+        score: score.clamp(0, 100),
+        matched_title: merged.title,
+        publisher: merged.publisher,
+        container_title: merged.container_title,
+        year: merged.year,
+        cited_by_count: merged.cited_by_count,
+        is_retracted: merged.retracted,
+        is_indexed_in_doaj: merged.in_doaj,
+        registries,
+        flags,
+        checked_at,
+    })
+}

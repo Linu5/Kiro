@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+.DS_Store
+.vite/
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Never commit student work or generated audit artefacts
+samples/*.pdf
+samples/*.docx
+exports/
+*.sccoach.sqlite
+*.sccoach.sqlite-journal

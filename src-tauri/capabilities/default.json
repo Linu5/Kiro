@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Minimal capability set: file dialogs for choosing a report, and the app's own commands. No HTTP permission is granted to the webview - all network access happens in Rust, host allow-listed.",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-open"]
+}

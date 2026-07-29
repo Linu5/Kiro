@@ -1,0 +1,42 @@
+[package]
+name = "socratic-citation-coach"
+version = "0.1.0"
+description = "Local-first citation reasoning coach for SIT capstone students"
+authors = ["SIT Capstone Toolkit"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "socratic_citation_coach_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["clock"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+url = "2"
+# rustls rather than native-tls: no OpenSSL dependency, reproducible builds.
+reqwest = { version = "0.12", default-features = false, features = [
+  "json",
+  "rustls-tls",
+  "gzip",
+] }
+
+[features]
+# Enabled by the Tauri CLI in dev builds.
+default = []
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
