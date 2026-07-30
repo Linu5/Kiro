@@ -23,6 +23,46 @@ const REFERENCE_HEADINGS =
  */
 const DOI_PATTERN = /\b10\.\d{4,9}\/[-–—‐‑‒A-Za-z0-9._;()/:<>+#\[\]]+/;
 const UNICODE_DASHES = /[\u2010\u2011\u2012\u2013\u2014\u2212]/g;
+
+/** Sentence punctuation that can never end a DOI. */
+const DOI_TAIL_PUNCTUATION = /[.,;:]+$/;
+/** Closing delimiter -> its opener. */
+const DOI_CLOSERS: Record<string, string> = { ")": "(", "]": "[", ">": "<" };
+
+/**
+ * Trim the enclosing punctuation a DOI picks up from the sentence around it.
+ *
+ * `DOI_PATTERN` deliberately admits `()`, `<>` and `[]` because real suffixes use
+ * them - `10.1016/0306-4573(88)90021-0`, and the old Wiley
+ * `10.1002/(SICI)1099-1097(199805)12:3<397::AID-HYP591>3.0.CO;2-8`. That means a
+ * DOI printed inside brackets, as `[10.1016/j.trc.2013.02.005]`, captures the
+ * closing bracket and then resolves to nothing.
+ *
+ * Closers are therefore removed only when **unpaired** within the captured
+ * string. Stripping them unconditionally would corrupt any suffix that genuinely
+ * ends in a delimiter, producing the same 404 in the opposite direction.
+ */
+export function trimDoiTail(doi: string): string {
+  let out = doi;
+  for (;;) {
+    const withoutPunctuation = out.replace(DOI_TAIL_PUNCTUATION, "");
+    if (withoutPunctuation !== out) {
+      out = withoutPunctuation;
+      continue;
+    }
+
+    const last = out.slice(-1);
+    const opener = DOI_CLOSERS[last];
+    if (!opener) break;
+
+    const body = out.slice(0, -1);
+    const opens = body.split(opener).length - 1;
+    const closes = body.split(last).length - 1;
+    if (opens > closes) break; // the closer is matched: part of the identifier
+    out = body;
+  }
+  return out;
+}
 const URL_PATTERN = /https?:\/\/[^\s)>\],]+/i;
 /**
  * arXiv identifiers in every form a student's bibliography uses them:
@@ -257,7 +297,7 @@ function extractLocator(body: string): string | undefined {
 
 export function parseReferenceEntry(marker: string, body: string, number?: number): ReferenceEntry {
   const doiMatch = DOI_PATTERN.exec(body);
-  const doiAsWritten = doiMatch?.[0]?.replace(/[.,;]+$/, "");
+  const doiAsWritten = doiMatch ? trimDoiTail(doiMatch[0]) : undefined;
   // Repair Unicode dashes so the identifier can still be looked up; the
   // integrity layer reports the original as a malformed locator.
   const doi = doiAsWritten?.replace(UNICODE_DASHES, "-");
