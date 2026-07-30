@@ -365,7 +365,7 @@ registries, runs local model inference, persists to SQLite and writes exports.
 | Integrity engine (30 modes) | Complete | 46/46 offline expectations hit, 0 false positives on 15 control references |
 | Registry verification | Complete | 26/26 live checks in the packaged app; 10.8–21.8 s per chapter |
 | Socratic checkpoint UI | Complete | Driven end-to-end via WebView2 remote debugging |
-| Dual-reasoning evaluator | Transport complete, quality unmeasured | Model output rendered, scored and persisted — verified against a **stub** daemon; heuristic fallback verified. No real model has been run end-to-end |
+| Dual-reasoning evaluator | Complete, verified against a real local model | Model output rendered, scored and persisted — verified end-to-end against a live `llama3` model via Ollama (loopback-only, `SCC_ALLOW_REMOTE_LLM` unset); `generatedBy: "local-llm"` confirmed in the Audit trace view. Heuristic fallback verified separately. [FILL IN: any JSON-retry behaviour you noticed, and rough response latency] |
 | Trace store (SQLite) | Complete | Round-trip verified: claims, references, checkpoints, evaluations, provenance |
 | Markdown + PDF export | Complete | Valid PDF (2 pages, `%%EOF`) written to Documents |
 | Installers (MSI + NSIS) | Complete | Built and launched; unsigned |
