@@ -1,9 +1,11 @@
 import { newId, truncate } from "../text";
 import { generateJson } from "./ollama";
 import { SOCRATIC_SYSTEM, socraticQuestionPrompt } from "./prompts";
+import { MODE_LABEL } from "../integrity/util";
 import type {
   AppSettings,
   Claim,
+  IntegrityFinding,
   ReferenceEntry,
   SocraticDimension,
   SocraticQuestion,
@@ -30,6 +32,49 @@ export const DIMENSION_LABEL: Record<SocraticDimension, string> = {
   selection: "Selection rationale",
   synthesis: "Synthesis across sources",
 };
+
+/**
+ * Questions derived from integrity findings.
+ *
+ * A finding already contains the specific thing that is wrong and the question a
+ * supervisor would ask about it, so these are put first and are never replaced by
+ * generic prompts: "which passage supports this?" is a weaker use of the
+ * student's time than "this DOI returns a different paper - which did you read?".
+ */
+export function questionsFromFindings(
+  claim: Claim,
+  reference: ReferenceEntry | undefined,
+  findings: IntegrityFinding[],
+): SocraticQuestion[] {
+  const relevant = findings.filter(
+    (entry) =>
+      Boolean(entry.question) &&
+      ((entry.claimId && entry.claimId === claim.id) ||
+        (entry.referenceId && reference && entry.referenceId === reference.id)),
+  );
+
+  const dimensionFor = (mode: IntegrityFinding["mode"]): SocraticDimension => {
+    if (mode === "undifferentiated-block-citation" || mode === "descriptive-listing-without-synthesis") {
+      return "synthesis";
+    }
+    if (mode === "lack-of-critical-evaluation" || mode === "unsupported-claim") return "limitations";
+    if (mode === "citation-chaining" || mode === "non-scholarly-source-as-scholarship") return "relevance";
+    if (mode === "missing-citation" || mode === "fabricated-quotation") return "grounding";
+    return "selection";
+  };
+
+  return relevant.slice(0, 3).map((entry, index) => ({
+    id: newId("q"),
+    claimId: claim.id,
+    referenceId: reference?.id,
+    dimension: dimensionFor(entry.mode),
+    prompt: entry.question as string,
+    hint: `${MODE_LABEL[entry.mode]}: ${truncate(entry.detail, 220)}`,
+    order: index,
+    generatedBy: "heuristic" as const,
+    findingId: entry.id,
+  }));
+}
 
 /** Which angles are worth probing for this particular claim. */
 export function dimensionsFor(claim: Claim): SocraticDimension[] {
@@ -161,27 +206,42 @@ export async function questionsForClaim(
 export interface CheckpointPlan {
   questions: SocraticQuestion[];
   usedModel: boolean;
+  fromFindings: number;
 }
 
-/** Build the whole checkpoint, one claim at a time (sequential: local models are single-slot). */
+/**
+ * Build the whole checkpoint, one claim at a time (sequential: local models are
+ * single-slot). Finding-derived questions come first; the model or the bank fills
+ * the remaining slots so every claim still gets a grounding question.
+ */
 export async function planCheckpoint(
   claims: Claim[],
   references: ReferenceEntry[],
   settings: AppSettings,
+  findings: IntegrityFinding[] = [],
   onProgress?: (done: number, total: number) => void,
 ): Promise<CheckpointPlan> {
   const byId = new Map(references.map((reference) => [reference.id, reference] as const));
   const questions: SocraticQuestion[] = [];
   let usedModel = false;
+  let fromFindings = 0;
 
   for (const [index, claim] of claims.entries()) {
     const referenceId = claim.citations.find((citation) => citation.referenceId)?.referenceId;
     const reference = referenceId ? byId.get(referenceId) : undefined;
-    const generated = await questionsForClaim(claim, reference, settings);
-    if (generated.some((question) => question.generatedBy === "local-llm")) usedModel = true;
-    questions.push(...generated);
+
+    const targeted = questionsFromFindings(claim, reference, findings);
+    fromFindings += targeted.length;
+
+    const remaining = Math.max(1, 3 - targeted.length);
+    const generic = (await questionsForClaim(claim, reference, settings)).slice(0, remaining);
+    if (generic.some((question) => question.generatedBy === "local-llm")) usedModel = true;
+
+    questions.push(
+      ...[...targeted, ...generic].map((question, order) => ({ ...question, order })),
+    );
     onProgress?.(index + 1, claims.length);
   }
 
-  return { questions, usedModel };
+  return { questions, usedModel, fromFindings };
 }

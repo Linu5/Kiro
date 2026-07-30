@@ -102,6 +102,10 @@ sequenceDiagram
 | `src/lib/parsing/references.ts` | Reference-list segmentation, DOI/venue/year extraction. |
 | `src/lib/parsing/citations.ts` | Inline citation detection (`[12]`, `(Smith et al., 2023)`) and claim-sentence mapping. |
 | `src/lib/parsing/index.ts` | Orchestrates ingestion into a `ReportDocument`. |
+| `src/lib/integrity/structural.ts` | Orphan, phantom, duplicate and mixed-style checks over the document. |
+| `src/lib/integrity/references.ts` | Locator, metadata, source-type and registry-comparison checks per reference. |
+| `src/lib/integrity/use.ts` | How each source serves the argument: block citations, uncited figures, chaining, currency, quotation, synthesis. |
+| `src/lib/integrity/util.ts` | Name/venue comparison and the false-positive guards (diacritics, particles, standards, vendor docs). |
 | `src/lib/ai/prompts.ts` | All LLM prompt templates (Socratic + dual reasoning). Auditable in one place. |
 | `src/lib/ai/ollama.ts` | JSON-constrained local LLM calls with retry and schema coercion. |
 | `src/lib/ai/socratic.ts` | Socratic question planning; deterministic fallback bank when no model is running. |

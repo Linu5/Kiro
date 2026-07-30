@@ -1,4 +1,5 @@
 import { newId, splitBlocks, splitSentences, wordCount } from "../text";
+import { analyseIntegrity } from "../integrity";
 import { extractDocument } from "./extractText";
 import { findCitations, resolveCitations, scoreSalience } from "./citations";
 import { parseReferences } from "./references";
@@ -34,15 +35,33 @@ function buildPages(raw: { index: number; text: string }[]): {
   return { pages, fullText };
 }
 
-function extractTitle(fullText: string, fileName: string): string {
-  const head = fullText.slice(0, 1200).split("\n").map((l) => l.trim());
-  const candidate = head
-    .slice(0, 12)
-    .filter((line) => line.length >= 12 && line.length <= 160)
-    .filter((line) => !/^(singapore institute of technology|sit\b|page\s+\d+|\d+$)/i.test(line))
-    .filter((line) => !/^(abstract|executive summary|contents)$/i.test(line))
-    .sort((a, b) => b.length - a.length)[0];
-  return candidate ?? fileName.replace(/\.[^.]+$/, "");
+/**
+ * Report title. Position matters far more than length: the title sits in the
+ * first few lines and is a heading, not a sentence. Scoring by length alone
+ * picks the longest body sentence - or, in a short chapter, a reference entry.
+ */
+function extractTitle(fullText: string, fileName: string, bodyEnd: number): string {
+  const lines = fullText.slice(0, Math.min(bodyEnd || fullText.length, 3000)).split("\n");
+  let best: { line: string; score: number } | null = null;
+
+  for (const [index, raw] of lines.slice(0, 15).entries()) {
+    const line = raw.trim();
+    if (line.length < 12 || line.length > 160) continue;
+    if (/^(abstract|executive summary|contents|table of contents|introduction|references|bibliography)$/i.test(line)) continue;
+    if (/^(singapore institute of technology|sit\b|page\s+\d+|\d+$|chapter\s+\d)/i.test(line)) continue;
+    // Sentences, citations and reference entries are not titles.
+    if (/[.;:]$/.test(line) || /\[\d{1,3}\]/.test(line) || /\bdoi:/i.test(line)) continue;
+    if (/(19|20)\d{2}\b/.test(line) && /,/.test(line)) continue;
+
+    const words = line.split(/\s+/);
+    const capitalised = words.filter((w) => /^[A-Z]/.test(w)).length / words.length;
+    let score = 10 - index * 1.5; // earlier is much better
+    score += capitalised > 0.5 ? 3 : 0; // title case
+    score += words.length >= 3 && words.length <= 18 ? 2 : -2;
+    if (!best || score > best.score) best = { line, score };
+  }
+
+  return best?.line ?? fileName.replace(/\.[^.]+$/, "");
 }
 
 function extractExecutiveSummary(fullText: string): string {
@@ -170,18 +189,22 @@ export async function parseReport(fileName: string, bytes: Uint8Array): Promise<
     warnings.push(
       `${orphanMarkers.length} inline marker(s) could not be matched to a reference entry: ${orphanMarkers
         .slice(0, 8)
-        .join(", ")}${orphanMarkers.length > 8 ? "\u2026" : ""}. These are flagged as potentially hallucinated citations.`,
+        .join(", ")}${orphanMarkers.length > 8 ? "\u2026" : ""}.`,
     );
   }
   if (claims.length === 0) {
     warnings.push("No inline citations were detected. Check that the report uses [n] or (Author, year) style.");
   }
 
-  return {
+  const observedStyles = [
+    ...new Set(claims.flatMap((claim) => claim.citations.map((citation) => citation.style))),
+  ];
+
+  const document: ReportDocument = {
     id: newId("doc"),
     fileName,
     sourceFormat: extracted.format,
-    title: extractTitle(fullText, fileName),
+    title: extractTitle(fullText, fileName, section.start),
     thesis,
     executiveSummary: summary,
     fullText,
@@ -192,13 +215,42 @@ export async function parseReport(fileName: string, bytes: Uint8Array): Promise<
     wordCount: wordCount(fullText),
     createdAt: new Date().toISOString(),
     warnings,
+    observedStyles,
+    findings: [],
   };
+
+  // Offline integrity pass. Re-run after source verification to add the
+  // registry-dependent findings.
+  document.findings = analyseIntegrity(document);
+  return document;
 }
 
-/** Highest-salience claims, returned in document order. */
+const FINDING_WEIGHT = { critical: 0.6, major: 0.4, moderate: 0.2, advisory: 0.05 } as const;
+
+/**
+ * Claims to question, in document order. Integrity findings dominate the
+ * ranking: a claim with a confirmed fault attached is worth more of the
+ * student's time than a merely emphatic sentence.
+ */
 export function selectCheckpointClaims(document: ReportDocument, budget: number): Claim[] {
+  const boost = new Map<string, number>();
+  for (const entry of document.findings) {
+    const weight = FINDING_WEIGHT[entry.severity];
+    const targets = new Set<string>();
+    if (entry.claimId) targets.add(entry.claimId);
+    if (entry.referenceId) {
+      for (const claim of document.claims) {
+        if (claim.citations.some((citation) => citation.referenceId === entry.referenceId)) {
+          targets.add(claim.id);
+        }
+      }
+    }
+    for (const claimId of targets) boost.set(claimId, (boost.get(claimId) ?? 0) + weight);
+  }
+
+  const rank = (claim: Claim): number => claim.salience + (boost.get(claim.id) ?? 0);
   return [...document.claims]
-    .sort((a, b) => b.salience - a.salience)
+    .sort((a, b) => rank(b) - rank(a))
     .slice(0, Math.max(1, budget))
     .sort((a, b) => a.charStart - b.charStart);
 }

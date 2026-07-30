@@ -27,13 +27,25 @@ export interface ReferenceEntry {
   id: string;
   /** `[12]` for numeric styles, `Smith et al., 2023` for author-year. */
   marker: string;
+  /** Numeric position in the list, when the list is numbered. */
+  number?: number;
   raw: string;
   authors: string[];
   title?: string;
   year?: number;
   venue?: string;
+  publisher?: string;
   doi?: string;
+  /** The DOI exactly as printed, before repair - used to report malformed locators. */
+  doiAsWritten?: string;
+  arxivId?: string;
   url?: string;
+  /** "cited 2026 Jul" / "Accessed: 14 Mar. 2026", when supplied. */
+  accessedDate?: string;
+  /** Volume/issue/pages/article-number, when parseable. */
+  locator?: string;
+  /** A published standard, statute or official specification (NFPA, ISO, RFC...). */
+  isStandard: boolean;
   authenticity?: AuthenticityVerdict;
 }
 
@@ -46,6 +58,11 @@ export interface CitationInstance {
   referenceId?: string;
   charStart: number;
   charEnd: number;
+  /**
+   * True when the marker was reached by expanding a range such as `[1]-[8]`.
+   * The reference is cited, but no claim is attributed to it individually.
+   */
+  viaRange?: boolean;
 }
 
 /** A cited sentence: the unit the student is asked to defend. */
@@ -81,6 +98,91 @@ export interface ReportDocument {
   createdAt: string;
   /** Non-fatal ingestion notes, e.g. "no reference list heading found". */
   warnings: string[];
+  /** Which inline citation styles were observed, for consistency checking. */
+  observedStyles: CitationStyle[];
+  /** Deterministic citation-integrity findings (see lib/integrity). */
+  findings: IntegrityFinding[];
+}
+
+// ---------------------------------------------------------------------------
+// Citation integrity findings (deterministic checks, no model involved)
+// ---------------------------------------------------------------------------
+
+/**
+ * Failure-mode identifiers. These follow the taxonomy in
+ * `test_cases/test_cases/FAILURE_MODES.md` so findings can be traced back to a
+ * named mode rather than an ad-hoc label.
+ */
+export type FailureMode =
+  // reference level
+  | "fabricated-reference"
+  | "incorrect-or-incomplete-metadata"
+  | "identifier-mismatch"
+  | "malformed-locator"
+  | "broken-or-unavailable-link"
+  | "version-mismatch"
+  | "wrong-date"
+  | "typographical-corruption"
+  // source level
+  | "questionable-venue"
+  | "non-scholarly-source-as-scholarship"
+  | "mutable-source-undocumented"
+  | "inappropriate-or-discredited-source"
+  | "insufficient-scholarly-grounding"
+  | "secondary-only-bibliography"
+  // use level
+  | "unsupported-claim"
+  | "exaggeration-or-quote-mining"
+  | "fabricated-quotation"
+  | "citation-chaining"
+  | "superseded-source-as-current"
+  | "undifferentiated-block-citation"
+  | "descriptive-listing-without-synthesis"
+  | "poor-citation-integration"
+  | "lack-of-critical-evaluation"
+  | "overreliance-on-quotation"
+  | "missing-citation"
+  | "misleading-source-equivalence"
+  // structural
+  | "duplicate-entry"
+  | "orphan-reference"
+  | "phantom-citation"
+  | "reference-manager-debris"
+  | "inconsistent-citation-system"
+  | "inconsistent-in-text-attribution";
+
+export type FindingLevel = "reference" | "source" | "use" | "structural";
+
+export type Severity = "critical" | "major" | "moderate" | "advisory";
+
+/**
+ * `confirmed` - established from the document or a registry record.
+ * `needs-evidence` - a signal the student must answer for; the tool cannot
+ *   settle it alone (paywalled source, mutable page, judgement call).
+ */
+export type FindingConfidence = "confirmed" | "needs-evidence";
+
+export interface IntegrityFinding {
+  id: string;
+  mode: FailureMode;
+  level: FindingLevel;
+  severity: Severity;
+  confidence: FindingConfidence;
+  /** One-line statement of what is wrong. */
+  summary: string;
+  /** The specific evidence: quoted text, marker numbers, registry values. */
+  detail: string;
+  referenceId?: string;
+  claimId?: string;
+  /** Marker(s) the finding concerns, for display when no reference resolves. */
+  markers: string[];
+  /** The question a supervisor would ask about this finding. */
+  question?: string;
+  /**
+   * Which false-positive guard was considered and why it does not apply, or
+   * why the check was suppressed. Recorded so restraint is auditable.
+   */
+  guardNote?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -109,6 +211,14 @@ export interface AuthenticityVerdict {
   containerTitle?: string;
   year?: number;
   citedByCount?: number;
+  /** Author list as recorded by the registry, for comparison with the entry. */
+  registryAuthors?: string[];
+  /** Crossref/OpenAlex work or hosting type: journal-article, posted-content... */
+  workType?: string;
+  /** The registry record is a preprint / repository copy. */
+  isPreprint?: boolean;
+  /** 0..1 overlap between the cited title and the resolved title. */
+  titleOverlap?: number;
   isRetracted: boolean;
   isIndexedInDoaj: boolean;
   /** Which registries answered: `crossref`, `openalex`. */
@@ -139,6 +249,8 @@ export interface SocraticQuestion {
   hint?: string;
   order: number;
   generatedBy: ReasoningProvenance;
+  /** Set when the question was derived from a specific integrity finding. */
+  findingId?: string;
 }
 
 export interface StudentResponse {

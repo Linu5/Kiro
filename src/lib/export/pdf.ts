@@ -1,5 +1,6 @@
 import { ALIGNMENT_LABEL, BAND_LABEL } from "../scoring";
 import { DIMENSION_LABEL } from "../ai/socratic";
+import { MODE_LABEL, summariseFindings } from "../integrity";
 import type { AppSettings, ReasoningTrace } from "@/types";
 
 /**
@@ -143,7 +144,27 @@ export async function renderTracePdf(
   space(6);
   rule();
 
-  write("3. Reasoning trace", { size: 12, style: "bold" });
+  if (report.findings.length > 0) {
+    const summary = summariseFindings(report.findings, report.references.length);
+    write("3. Citation integrity findings", { size: 12, style: "bold" });
+    write(
+      `${summary.total} findings: ${summary.bySeverity.critical} critical, ${summary.bySeverity.major} major, ${summary.bySeverity.moderate} moderate. ${summary.confirmed} confirmed, ${summary.needsEvidence} awaiting the student's evidence. ${summary.cleanReferences} of ${report.references.length} references carry no finding.`,
+    );
+    space(4);
+    for (const entry of report.findings) {
+      write(
+        `${entry.severity.toUpperCase()} - ${MODE_LABEL[entry.mode]}${entry.markers.length > 0 ? ` (${entry.markers.join(", ")})` : ""}`,
+        { size: 9.5, style: "bold", gap: 1 },
+      );
+      write(entry.detail, { size: 9, indent: 8, colour: 70 });
+      if (entry.question) write(`Question: ${entry.question}`, { size: 9, indent: 8, style: "italic", colour: 40 });
+      if (entry.guardNote) write(`Restraint: ${entry.guardNote}`, { size: 8, indent: 8, colour: 130 });
+      space(2);
+    }
+    rule();
+  }
+
+  write("4. Reasoning trace", { size: 12, style: "bold" });
 
   const grouped = new Map<string, typeof trace.questions>();
   for (const question of trace.questions) {
@@ -157,7 +178,7 @@ export async function renderTracePdf(
     const claim = claimsById.get(claimId);
     if (!claim) continue;
     space(6);
-    write(`3.${index}  Claim - page ${claim.page}${claim.section ? ` / ${claim.section}` : ""}`, {
+    write(`4.${index}  Claim - page ${claim.page}${claim.section ? ` / ${claim.section}` : ""}`, {
       size: 10.5,
       style: "bold",
     });
@@ -220,7 +241,7 @@ export async function renderTracePdf(
   }
 
   if (report.warnings.length > 0) {
-    write("4. Parser notes", { size: 12, style: "bold" });
+    write("5. Parser notes", { size: 12, style: "bold" });
     for (const warning of report.warnings) write(`- ${warning}`, { size: 8.5, colour: 110 });
   }
 

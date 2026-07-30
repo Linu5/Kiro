@@ -4,7 +4,10 @@ A local-first Tauri desktop app that coaches SIT capstone students through
 justifying every citation in their literature review, then produces an auditable
 reasoning trace their faculty supervisor can review.
 
+- Submission write-up (problem, solution, impact, approach, plan): [`docs/SUBMISSION.md`](docs/SUBMISSION.md)
 - Full architecture and data model: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Failure-mode coverage and test-case results: [`docs/FAILURE_MODE_COVERAGE.md`](docs/FAILURE_MODE_COVERAGE.md)
+- Independent benchmark audit (evidence per requirement): [`docs/BENCHMARK_AUDIT.md`](docs/BENCHMARK_AUDIT.md)
 - Prompt templates (auditable in one place): [`src/lib/ai/prompts.ts`](src/lib/ai/prompts.ts)
 
 ## What it does
@@ -12,6 +15,7 @@ reasoning trace their faculty supervisor can review.
 | Phase | Capability |
 | --- | --- |
 | 1. Ingestion | Drag-and-drop PDF/DOCX, thesis extraction, inline-citation to claim mapping, source verification against Crossref/OpenAlex. |
+| 1b. Integrity checks | 30 named citation failure modes detected deterministically - orphan and phantom citations, duplicates, malformed DOIs, wrong dates, invented or incomplete author lists, identifiers resolving to the wrong work, questionable venues, preprint/version-of-record mismatches, block citations, uncited statistics, chaining through surveys, and more. Every finding carries its evidence, a question for the student, and the false-positive guard that was considered. |
 | 2. Socratic checkpoint | Targeted questions per claim; student highlights the exact excerpt and writes their own rationale. |
 | 3. Dual reasoning | The local model reasons about the claim/citation link independently, then the two reasonings are compared for gaps, over-generalisation and surface-level use. |
 | 4. Audit | Citation health matrix, side-by-side comparison cards, exportable Markdown/PDF Reasoning Trace Log. |
@@ -108,12 +112,17 @@ sends only DOI/title/author/year. See section 5 of the architecture doc.
 ```
 .
 ├── docs/ARCHITECTURE.md        # diagrams, module map, data model
+├── docs/FAILURE_MODE_COVERAGE.md
+├── docs/BENCHMARK_AUDIT.md     # independent audit of the test corpus + app
+├── docs/SUBMISSION.md          # judge-facing write-up
+├── test_cases/                 # supplied assessment corpus (3 chapters + keys)
 ├── index.html
 ├── src/                        # React + TypeScript webview
 │   ├── components/             # shell + reusable UI
 │   ├── views/                  # Document Overview, Socratic Checkpoint,
 │   │                           # Reasoning Comparison, Supervisor Audit
 │   ├── lib/parsing/            # pdf.js / mammoth ingestion + citation mapping
+│   ├── lib/integrity/          # deterministic failure-mode checks + guards
 │   ├── lib/ai/                 # prompts, Ollama bridge, planner, evaluator
 │   ├── lib/export/             # Markdown + PDF trace log
 │   ├── lib/scoring.ts          # authenticity / relevance / depth metric
@@ -134,6 +143,17 @@ sends only DOI/title/author/year. See section 5 of the architecture doc.
 5. Dashboard + audit exporter (Markdown/PDF) - **done**
 
 ## Verification status
+
+Against the supplied test cases (see the coverage doc for the breakdown):
+
+- Offline checks: **46/46** expected findings across the three chapters, **0**
+  false positives on the 15 references the assessments mark as sound.
+- Live registry checks, run through the packaged desktop app: **26/26**, covering
+  invented authors, fabricated DOIs, a DOI resolving to a different paper, an
+  affiliation in an author slot, a wrong venue and an incomplete author list;
+  every one of the 17 positive controls left unaccused.
+- Every factual claim in the assessment keys independently re-confirmed against
+  live Crossref, OpenAlex, arXiv and DNS (**23/23**). See the audit doc.
 
 Verified on this machine:
 

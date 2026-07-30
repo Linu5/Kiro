@@ -51,6 +51,12 @@ export async function verifyReferences(
     let verdict: AuthenticityVerdict;
     if (!settings.metadataEnabled) {
       verdict = unverifiedVerdict("Metadata lookup is switched off in Settings, so nothing left this device.");
+    } else if (reference.isStandard) {
+      // Published standards are not held by these registries; a lookup would
+      // return "not found" and mean nothing.
+      verdict = unverifiedVerdict(
+        "Published standards and official specifications are not indexed in Crossref or OpenAlex. Treated as the primary source for what it specifies; check the edition and clause instead.",
+      );
     } else if (!hasQueryableMetadata(reference)) {
       verdict = unverifiedVerdict("No DOI or usable title could be parsed from this reference entry.");
     } else {

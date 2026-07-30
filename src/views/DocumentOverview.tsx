@@ -2,8 +2,10 @@ import { AlertTriangle, BookOpen, Play, Quote, Target } from "lucide-react";
 import type { ReactNode } from "react";
 import { AuthenticityBadge, Button, Card, EmptyState, Pill } from "@/components/ui";
 import { UploadZone } from "@/components/UploadZone";
+import { FindingsPanel } from "@/components/FindingsPanel";
 import { useApp } from "@/state/AppStore";
 import { selectCheckpointClaims } from "@/lib/parsing";
+import { findingsForReference, MODE_LABEL } from "@/lib/integrity";
 
 /** Phase 1 dashboard: what the parser found, and how trustworthy the sources are. */
 export function DocumentOverview(): ReactNode {
@@ -61,6 +63,7 @@ export function DocumentOverview(): ReactNode {
     (reference) =>
       reference.authenticity?.status === "suspicious" || reference.authenticity?.status === "notFound",
   );
+  const criticalFindings = report.findings.filter((finding) => finding.severity === "critical").length;
 
   return (
     <div className="space-y-5">
@@ -91,6 +94,8 @@ export function DocumentOverview(): ReactNode {
                 ["References", report.references.length],
                 ["Unmatched markers", unresolved],
                 ["Flagged sources", suspicious.length],
+                ["Integrity findings", report.findings.length],
+                ["Critical", criticalFindings],
               ].map(([label, value]) => (
                 <div key={String(label)} className="rounded-xl border border-hairline bg-panel-muted px-3 py-2.5">
                   <dt className="text-[11px] text-ink-faint">{label}</dt>
@@ -125,6 +130,8 @@ export function DocumentOverview(): ReactNode {
         </div>
       </div>
 
+      <FindingsPanel findings={report.findings} references={report.references} />
+
       <Card
         title="Reference list and source checks"
         subtitle={`${report.references.length} entries \u00b7 only DOI and title metadata was sent for verification`}
@@ -151,6 +158,19 @@ export function DocumentOverview(): ReactNode {
                       {reference.authenticity.flags.join(" ")}
                     </p>
                   ) : null}
+                  {findingsForReference(report.findings, reference.id).length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {findingsForReference(report.findings, reference.id).map((finding) => (
+                        <Pill
+                          key={finding.id}
+                          tone={finding.severity === "critical" || finding.severity === "major" ? "bad" : "warn"}
+                          title={finding.summary}
+                        >
+                          {MODE_LABEL[finding.mode]}
+                        </Pill>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1.5">
                   <AuthenticityBadge status={reference.authenticity?.status ?? "unverified"} />

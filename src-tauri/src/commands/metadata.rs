@@ -40,6 +40,14 @@ pub struct AuthenticityVerdict {
     pub year: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cited_by_count: Option<i64>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub registry_authors: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub work_type: Option<String>,
+    pub is_preprint: bool,
+    /// 0..1 overlap between the cited title and the resolved title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title_overlap: Option<f64>,
     pub is_retracted: bool,
     pub is_indexed_in_doaj: bool,
     pub registries: Vec<String>,
@@ -56,6 +64,12 @@ struct Record {
     cited_by_count: Option<i64>,
     retracted: bool,
     in_doaj: bool,
+    /// Author list as the registry holds it, so the caller can compare names.
+    authors: Vec<String>,
+    /// Crossref/OpenAlex work type: journal-article, proceedings-article,
+    /// posted-content (preprint)...
+    work_type: Option<String>,
+    is_preprint: bool,
 }
 
 fn guard_host(url: &str) -> CoreResult<()> {
@@ -111,7 +125,29 @@ fn crossref_record(work: &serde_json::Value) -> Record {
     let year = work["issued"]["date-parts"][0][0]
         .as_i64()
         .or_else(|| work["published"]["date-parts"][0][0].as_i64());
+    let authors = work["author"]
+        .as_array()
+        .map(|list| {
+            list.iter()
+                .filter_map(|entry| {
+                    let family = entry["family"].as_str();
+                    let given = entry["given"].as_str();
+                    match (given, family) {
+                        (Some(g), Some(f)) => Some(format!("{g} {f}")),
+                        (None, Some(f)) => Some(f.to_string()),
+                        // Consortium / group authorship.
+                        _ => entry["name"].as_str().map(str::to_string),
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let work_type = work["type"].as_str().map(str::to_string);
+    let is_preprint = work_type.as_deref() == Some("posted-content");
     Record {
+        authors,
+        work_type,
+        is_preprint,
         title: work["title"][0].as_str().map(str::to_string),
         publisher: work["publisher"].as_str().map(str::to_string),
         container_title: work["container-title"][0].as_str().map(str::to_string),
@@ -136,7 +172,23 @@ fn crossref_record(work: &serde_json::Value) -> Record {
 
 fn openalex_record(work: &serde_json::Value) -> Record {
     let source = &work["primary_location"]["source"];
+    let authors = work["authorships"]
+        .as_array()
+        .map(|list| {
+            list.iter()
+                .filter_map(|entry| entry["author"]["display_name"].as_str().map(str::to_string))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let work_type = work["type"].as_str().map(str::to_string);
+    // A repository-hosted submitted version is a preprint, whatever the type says.
+    let is_preprint = work_type.as_deref() == Some("preprint")
+        || source["type"].as_str() == Some("repository")
+        || work["primary_location"]["version"].as_str() == Some("submittedVersion");
     Record {
+        authors,
+        work_type,
+        is_preprint,
         title: work["display_name"].as_str().map(str::to_string),
         publisher: source["host_organization_name"].as_str().map(str::to_string),
         container_title: source["display_name"].as_str().map(str::to_string),
@@ -147,18 +199,23 @@ fn openalex_record(work: &serde_json::Value) -> Record {
     }
 }
 
+/// Percent-encode for query strings, per RFC 3986 unreserved set.
+///
+/// Encoding operates on UTF-8 *bytes*: casting a `char` to `u8` truncates any
+/// code point above U+00FF and mangles accented titles, which then fail to match
+/// and get reported as fabricated. Only ASCII alphanumerics and `-_.~` are safe
+/// to pass through unescaped.
 fn encode(value: &str) -> String {
-    // Minimal percent-encoding for query strings.
-    value
-        .chars()
-        .flat_map(|c| {
-            if c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | '~') {
-                vec![c]
-            } else {
-                format!("%{:02X}", c as u32 as u8).chars().collect()
-            }
-        })
-        .collect()
+    let mut out = String::with_capacity(value.len());
+    for byte in value.as_bytes() {
+        let c = *byte as char;
+        if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '~') {
+            out.push(c);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
 }
 
 async fn lookup_crossref(state: &AppState, query: &SourceQuery) -> CoreResult<Option<Record>> {
@@ -173,7 +230,8 @@ async fn lookup_crossref(state: &AppState, query: &SourceQuery) -> CoreResult<Op
         return Ok(None);
     };
     let mut url = format!(
-        "https://api.crossref.org/works?rows=3&select=title,publisher,container-title,issued,is-referenced-by-count,type,update-to&query.bibliographic={}",
+        "https://api.crossref.org/works?rows=3&select={}&query.bibliographic={}",
+        encode("title,author,publisher,container-title,issued,is-referenced-by-count,type,update-to,DOI"),
         encode(title.trim())
     );
     if let Some(author) = query.first_author.as_ref() {
@@ -276,6 +334,15 @@ pub async fn verify_source(
             cited_by_count: oa.cited_by_count.or(cr.cited_by_count),
             retracted: cr.retracted || oa.retracted,
             in_doaj: oa.in_doaj,
+            // Prefer whichever registry gave the fuller author list.
+            authors: if cr.authors.len() >= oa.authors.len() {
+                cr.authors.clone()
+            } else {
+                oa.authors.clone()
+            },
+            work_type: cr.work_type.clone().or_else(|| oa.work_type.clone()),
+            // Only a preprint if neither registry holds a published version.
+            is_preprint: cr.is_preprint && oa.is_preprint,
         },
         (Some(record), None) | (None, Some(record)) => Record {
             title: record.title.clone(),
@@ -285,6 +352,9 @@ pub async fn verify_source(
             cited_by_count: record.cited_by_count,
             retracted: record.retracted,
             in_doaj: record.in_doaj,
+            authors: record.authors.clone(),
+            work_type: record.work_type.clone(),
+            is_preprint: record.is_preprint,
         },
         (None, None) => {
             let has_query = query.doi.is_some() || query.title.is_some();
@@ -296,6 +366,10 @@ pub async fn verify_source(
                 container_title: None,
                 year: None,
                 cited_by_count: None,
+                registry_authors: Vec::new(),
+                work_type: None,
+                is_preprint: false,
+                title_overlap: None,
                 is_retracted: false,
                 is_indexed_in_doaj: false,
                 registries,
@@ -343,8 +417,10 @@ pub async fn verify_source(
             ));
         }
     }
+    let mut title_overlap: Option<f64> = None;
     if let (Some(claimed), Some(found)) = (query.title.as_ref(), merged.title.as_ref()) {
         let ratio = title_match(claimed, found);
+        title_overlap = Some(ratio);
         if ratio < 0.75 {
             score -= 16;
             flags.push(format!(
@@ -352,6 +428,11 @@ pub async fn verify_source(
                 ratio * 100.0,
                 found
             ));
+        }
+        // An identifier that resolves to an unrelated work is a harder fault than
+        // a loose title match, and must not be reported as verified.
+        if ratio < 0.5 && query.doi.is_some() {
+            score = score.min(35);
         }
     }
 
@@ -371,6 +452,10 @@ pub async fn verify_source(
         matched_title: merged.title,
         publisher: merged.publisher,
         container_title: merged.container_title,
+        registry_authors: merged.authors,
+        work_type: merged.work_type,
+        is_preprint: merged.is_preprint,
+        title_overlap,
         year: merged.year,
         cited_by_count: merged.cited_by_count,
         is_retracted: merged.retracted,

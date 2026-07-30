@@ -1,5 +1,6 @@
 import { ALIGNMENT_LABEL, BAND_LABEL } from "../scoring";
 import { DIMENSION_LABEL } from "../ai/socratic";
+import { MODE_LABEL, summariseFindings } from "../integrity";
 import type { AppSettings, ReasoningTrace } from "@/types";
 
 /**
@@ -93,7 +94,37 @@ export function renderTraceMarkdown(trace: ReasoningTrace, settings: AppSettings
   }
   lines.push("");
 
-  lines.push("## 3. Reasoning trace");
+  if (report.findings.length > 0) {
+    const summary = summariseFindings(report.findings, report.references.length);
+    lines.push("## 3. Citation integrity findings");
+    lines.push("");
+    lines.push(
+      `${summary.total} findings: ${summary.bySeverity.critical} critical, ${summary.bySeverity.major} major, ${summary.bySeverity.moderate} moderate. ${summary.confirmed} are established from the document or a registry record; ${summary.needsEvidence} need evidence from the student. ${summary.cleanReferences} of ${report.references.length} references carry no finding.`,
+    );
+    lines.push("");
+    lines.push("| Severity | Failure mode | Ref | Finding | Status |");
+    lines.push("| --- | --- | --- | --- | --- |");
+    for (const entry of report.findings) {
+      lines.push(
+        `| ${entry.severity} | ${MODE_LABEL[entry.mode]} | ${escapeCell(entry.markers.join(", ") || "-")} | ${escapeCell(entry.summary)} | ${entry.confidence === "confirmed" ? "confirmed" : "needs evidence"} |`,
+      );
+    }
+    lines.push("");
+    for (const entry of report.findings) {
+      lines.push(`**${MODE_LABEL[entry.mode]}${entry.markers.length > 0 ? ` - ${entry.markers.join(", ")}` : ""}.** ${entry.detail}`);
+      lines.push("");
+      if (entry.question) {
+        lines.push(`> Question to answer: ${entry.question}`);
+        lines.push("");
+      }
+      if (entry.guardNote) {
+        lines.push(`> Restraint: ${entry.guardNote}`);
+        lines.push("");
+      }
+    }
+  }
+
+  lines.push("## 4. Reasoning trace");
   lines.push("");
   const grouped = new Map<string, typeof trace.questions>();
   for (const question of trace.questions) {
@@ -106,7 +137,7 @@ export function renderTraceMarkdown(trace: ReasoningTrace, settings: AppSettings
   for (const [claimId, questions] of grouped) {
     const claim = claimsById.get(claimId);
     if (!claim) continue;
-    lines.push(`### 3.${index} Claim (p.${claim.page}${claim.section ? `, ${claim.section}` : ""})`);
+    lines.push(`### 4.${index} Claim (p.${claim.page}${claim.section ? `, ${claim.section}` : ""})`);
     index += 1;
     lines.push("");
     lines.push(`> ${claim.text}`);
@@ -171,7 +202,7 @@ export function renderTraceMarkdown(trace: ReasoningTrace, settings: AppSettings
   }
 
   if (report.warnings.length > 0) {
-    lines.push("## 4. Parser notes");
+    lines.push("## 5. Parser notes");
     lines.push("");
     for (const warning of report.warnings) lines.push(`- ${warning}`);
     lines.push("");

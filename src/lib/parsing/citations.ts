@@ -10,9 +10,26 @@ import type { CitationInstance, CitationStyle, ReferenceEntry } from "@/types";
  *                   and narrative form "Smith et al. (2023) showed ..."
  */
 
-const NUMERIC_GROUP = /\[(\d{1,3}(?:\s*(?:[,;]|[-\u2013])\s*\d{1,3})*)\]/g;
+const NUMERIC_GROUP = /\[(\d{1,3}(?:\s*(?:[,;]|[-\u2010-\u2015])\s*\d{1,3})*)\]/g;
+/**
+ * Cross-bracket ranges: `[1]-[8]`, `[1] – [8]`. IEEE prints ranges this way, and
+ * every number in between counts as cited even though only the endpoints appear
+ * as literal markers. Missing this produces false orphan reports for the
+ * interior references, which FAILURE_MODES.md calls out explicitly.
+ */
+const NUMERIC_RANGE = /\[(\d{1,3})\]\s*[-\u2010-\u2015]\s*\[(\d{1,3})\]/g;
 const PAREN_GROUP = /\(([^()]{3,160}?(?:19|20)\d{2}[a-z]?(?:[^()]{0,40})?)\)/g;
-const NARRATIVE = /\b([A-Z][A-Za-z'\u2019-]+(?:\s+(?:et\s+al\.?|and|&)\s+[A-Z][A-Za-z'\u2019-]+)?)\s+\((?:19|20)(\d{2})[a-z]?(?:,\s*[^()]{0,30})?\)/g;
+/**
+ * Narrative form: "Helbing and Molnár (1995) showed...". The name class covers
+ * Latin-1/Latin Extended-A so diacritics and particle surnames are matched
+ * rather than silently skipped.
+ */
+const NAME = "[A-Z\\u00c0-\\u024f][A-Za-z'\\u2019\\u00c0-\\u024f-]+";
+const NARRATIVE = new RegExp(
+  // "Smith (2019)", "Smith et al. (2019)", "Smith and van Beek (2019)"
+  `\\b(${NAME}(?:\\s+et\\s+al\\.?|\\s+(?:and|&)\\s+(?:van\\s+|von\\s+|de\\s+|der\\s+)?${NAME})?)\\s+\\((?:19|20)(\\d{2})[a-z]?(?:,\\s*[^()]{0,30})?\\)`,
+  "g",
+);
 
 /** Expand `[4]-[7]` / `[4, 6]` into individual numeric markers. */
 function expandNumeric(group: string): string[] {
@@ -49,18 +66,40 @@ function splitParenGroup(inner: string): string[] {
 
 export function findCitations(sentence: string, sentenceStart: number): CitationInstance[] {
   const found: CitationInstance[] = [];
-  const push = (marker: string, style: CitationStyle, start: number, end: number): void => {
+  const push = (
+    marker: string,
+    style: CitationStyle,
+    start: number,
+    end: number,
+    viaRange = false,
+  ): void => {
     found.push({
       id: newId("cite"),
       marker: marker.trim(),
       style,
       charStart: sentenceStart + start,
       charEnd: sentenceStart + end,
+      viaRange,
     });
   };
 
+  // Cross-bracket ranges first, so the interior numbers are registered as cited.
+  const rangeSpans: [number, number][] = [];
+  for (const match of sentence.matchAll(NUMERIC_RANGE)) {
+    const at = match.index ?? 0;
+    const from = Number.parseInt(match[1], 10);
+    const to = Number.parseInt(match[2], 10);
+    if (to <= from || to - from > 60) continue;
+    rangeSpans.push([at, at + match[0].length]);
+    for (let n = from; n <= to; n += 1) {
+      // Endpoints are printed; the interior is reached only by expansion.
+      push(`[${n}]`, "numeric", at, at + match[0].length, n !== from && n !== to);
+    }
+  }
+
   for (const match of sentence.matchAll(NUMERIC_GROUP)) {
     const at = match.index ?? 0;
+    if (rangeSpans.some(([s, e]) => at >= s && at < e)) continue;
     for (const marker of expandNumeric(match[1])) {
       push(marker, "numeric", at, at + match[0].length);
     }
