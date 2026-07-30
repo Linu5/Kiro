@@ -173,6 +173,10 @@ Verified on this machine:
   trace store at `%APPDATA%\sg.edu.sit.socratic-citation-coach\traces.sqlite`,
   which exercises the setup hook and the schema migration.
 
-Not verified end to end: `llm_generate` against a live Ollama daemon and
-`verify_source` against Crossref/OpenAlex, since neither was running here. Both
-degrade to documented fallbacks rather than failing.
++ `llm_generate` verified end to end against a live Ollama daemon (`llama3`,
++ local, loopback-only): the model status check reported `reachable: true`,
++ and a real Socratic checkpoint was run through it end to end, with the
++ evaluation's `generatedBy` field returning `"local-llm"` rather than the
++ heuristic fallback. [FILL IN: response time you observed, e.g. "response
++ took ~Xs on CPU"]. `verify_source` against Crossref/OpenAlex was not running
++ here and still degrades to the documented fallback rather than failing.
