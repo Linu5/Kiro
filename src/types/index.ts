@@ -220,6 +220,14 @@ export interface AuthenticityVerdict {
   /** 0..1 overlap between the cited title and the resolved title. */
   titleOverlap?: number;
   isRetracted: boolean;
+  /** The cited record is itself a retraction notice, not a retracted study. */
+  isRetractionNotice?: boolean;
+  /** DOI of the notice that retracted the work, when the registry links it. */
+  retractionNoticeDoi?: string;
+  /** Date the retraction was recorded, `YYYY-MM-DD` where available. */
+  retractionDate?: string;
+  /** A journal expression of concern: weaker than retraction, still material. */
+  hasExpressionOfConcern?: boolean;
   isIndexedInDoaj: boolean;
   /** Which registries answered: `crossref`, `openalex`. */
   registries: string[];
@@ -237,7 +245,13 @@ export type SocraticDimension =
   | "limitations"
   | "selection"
   | "relevance"
-  | "synthesis";
+  | "synthesis"
+  /**
+   * "What change did you make after re-reading the source?" - the fourth
+   * question named in the proposal. Asked after the comparison, and recorded in
+   * the reasoning trace as the revision.
+   */
+  | "revision";
 
 export interface SocraticQuestion {
   id: string;
@@ -261,6 +275,14 @@ export interface StudentResponse {
   evidencePage?: number;
   rationale: string;
   answeredAt: string;
+  /**
+   * What the student changed after re-reading the source. The proposal requires
+   * the reasoning trace to hold "the citation, the question, the student's
+   * explanation and any resulting revision", so this is part of the record
+   * rather than a UI-only note. Absent until the student answers the follow-up.
+   */
+  revision?: string;
+  revisedAt?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -364,6 +386,14 @@ export interface AppSettings {
   studentName: string;
   supervisorName: string;
   projectTitle: string;
+  /**
+   * Which scheduled supervision checkpoint this trace belongs to, e.g.
+   * "Back-to-campus day 2". The activity is designed to be completed before the
+   * meeting, so the trace has to say which meeting it is for.
+   */
+  checkpointLabel: string;
+  /** Date of that supervision meeting, `YYYY-MM-DD`. */
+  checkpointDate: string;
 }
 
 export interface LlmStatus {

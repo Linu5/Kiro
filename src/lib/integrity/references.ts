@@ -323,7 +323,10 @@ function checkVersion(reference: ReferenceEntry): IntegrityFinding[] {
 // Registry-dependent checks
 // ---------------------------------------------------------------------------
 
-function checkAgainstRegistry(reference: ReferenceEntry): IntegrityFinding[] {
+function checkAgainstRegistry(
+  reference: ReferenceEntry,
+  document: ReportDocument,
+): IntegrityFinding[] {
   const out: IntegrityFinding[] = [];
   const verdict = reference.authenticity;
   if (!verdict || verdict.status === "unverified") return out;
@@ -416,17 +419,64 @@ function checkAgainstRegistry(reference: ReferenceEntry): IntegrityFinding[] {
   }
 
   if (verdict.isRetracted) {
+    const when = verdict.retractionDate ? ` on ${verdict.retractionDate}` : "";
+    const notice = verdict.retractionNoticeDoi
+      ? ` The retraction notice is ${verdict.retractionNoticeDoi} - read it: the stated reason determines what, if anything, survives.`
+      : " Search the journal's site for the retraction notice; the stated reason determines what, if anything, survives.";
+    const citingSentences = document.claims
+      .filter((claim) => claim.citations.some((citation) => citation.referenceId === reference.id))
+      .map((claim) => `p.${claim.page}`);
+
     out.push(
       finding({
         mode: "inappropriate-or-discredited-source",
         level: "source",
         severity: "critical",
         confidence: "confirmed",
-        summary: "The cited work is marked as retracted",
-        detail: `The registry flags ${reference.doi} as retracted. It cannot carry supporting evidence unless the retraction itself is the subject.`,
+        summary: `${reference.marker} was formally retracted${when}`,
+        detail: `The registry record for ${reference.doi ?? reference.marker} is marked retracted${when}. A retraction withdraws the findings from the literature: they are no longer available as evidence, whatever the paper still says.${notice} Retractions issued for data fabrication or a methodological error invalidate the results outright; one issued for an authorship dispute or a duplicate submission may leave the findings standing while the citation still needs replacing.${
+          citingSentences.length > 0
+            ? ` This source currently supports claims at ${[...new Set(citingSentences)].join(", ")}.`
+            : ""
+        }`,
         reference,
-        question: "Are you citing this work to discuss its retraction, or as support? If the latter, it has to be replaced.",
-        guardNote: "Citing retracted work is legitimate when the retraction or its historical influence is the point.",
+        question: `This DOI points to a paper that was formally retracted. What was the stated reason for the retraction, and how does that reason bear on the specific claim you are making with ${reference.marker}?`,
+        guardNote:
+          "Citing retracted work is legitimate when the retraction, or the work's historical influence, is itself the subject - in which case say so in the sentence.",
+      }),
+    );
+  }
+
+  if (verdict.isRetractionNotice) {
+    out.push(
+      finding({
+        mode: "inappropriate-or-discredited-source",
+        level: "source",
+        severity: "major",
+        confidence: "confirmed",
+        summary: `${reference.marker} is a retraction notice, not a study`,
+        detail: `The record for ${reference.doi ?? reference.marker} is the notice that retracts another work${verdict.matchedTitle ? ` ("${verdict.matchedTitle}")` : ""}. A notice is typically a paragraph and reports no findings, so no result can be attributed to it. This usually means the original paper's DOI was replaced by its notice's DOI somewhere in the copy chain.`,
+        reference,
+        question: `Did you mean to cite the retraction notice, or the paper it retracts? If the paper, it has been withdrawn - what are you using it for?`,
+        guardNote:
+          "Citing the notice itself is correct when the retraction event is what is being discussed.",
+      }),
+    );
+  }
+
+  if (verdict.hasExpressionOfConcern && !verdict.isRetracted) {
+    out.push(
+      finding({
+        mode: "inappropriate-or-discredited-source",
+        level: "source",
+        severity: "major",
+        confidence: "needs-evidence",
+        summary: `An expression of concern has been issued about ${reference.marker}`,
+        detail: `The registry records an expression of concern for ${reference.doi ?? reference.marker}. The journal has publicly questioned the work without withdrawing it, so its findings are contested rather than void. Anything load-bearing drawn from it should be corroborated by an unaffected source.`,
+        reference,
+        question: `What concern did the journal raise about ${reference.marker}, and is the specific result you rely on affected by it?`,
+        guardNote:
+          "An expression of concern is not a retraction: the work may yet be cleared, so this is reported as needing your evidence rather than as a fault.",
       }),
     );
   }
@@ -559,7 +609,7 @@ export function checkReferences(document: ReportDocument): IntegrityFinding[] {
       ...checkAuthorForm(reference),
       ...checkSourceType(reference),
       ...checkVersion(reference),
-      ...checkAgainstRegistry(reference),
+      ...checkAgainstRegistry(reference, document),
     );
   }
   out.push(...checkBibliographyComposition(document.references));

@@ -64,6 +64,7 @@ type Action =
   | { type: "questions"; questions: SocraticQuestion[] }
   | { type: "active-question"; questionId: string | null }
   | { type: "response"; response: StudentResponse }
+  | { type: "revision"; questionId: string; revision: string; revisedAt: string }
   | { type: "evaluation"; evaluation: Evaluation }
   | { type: "llm"; llm: LlmStatus }
   | { type: "busy"; busy: Busy | null }
@@ -128,11 +129,39 @@ function reducer(state: State, action: Action): State {
       };
     case "active-question":
       return { ...state, activeQuestionId: action.questionId };
-    case "response":
+    case "response": {
+      // Re-answering must not discard a revision already recorded against this
+      // question. Merging here rather than in the caller, because the reducer is
+      // the only place guaranteed to see current state - a callback that reads
+      // `state.responses` can hold a stale closure and silently drop it.
+      const previous = state.responses[action.response.questionId];
       return {
         ...state,
-        responses: { ...state.responses, [action.response.questionId]: action.response },
+        responses: {
+          ...state.responses,
+          [action.response.questionId]: {
+            ...action.response,
+            revision: action.response.revision ?? previous?.revision,
+            revisedAt: action.response.revisedAt ?? previous?.revisedAt,
+          },
+        },
       };
+    }
+    case "revision": {
+      const existing = state.responses[action.questionId];
+      if (!existing) return state;
+      return {
+        ...state,
+        responses: {
+          ...state.responses,
+          [action.questionId]: {
+            ...existing,
+            revision: action.revision,
+            revisedAt: action.revisedAt,
+          },
+        },
+      };
+    }
     case "evaluation":
       return {
         ...state,
@@ -171,6 +200,7 @@ interface Store extends State {
     input: { rationale: string; evidenceExcerpt: string; evidencePage?: number },
   ) => Promise<void>;
   setActiveQuestion: (questionId: string | null) => void;
+  recordRevision: (question: SocraticQuestion, revision: string) => Promise<void>;
   runExport: (format: ExportFormat) => Promise<void>;
   refreshLlm: () => Promise<void>;
   refreshTraces: () => Promise<void>;
@@ -334,6 +364,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }): ReactNo
       if (!claim) return;
       const reference = state.document.references.find((entry) => entry.id === question.referenceId);
 
+      // The reducer carries any recorded revision forward; the trace store does
+      // the same with COALESCE.
       const response: StudentResponse = {
         questionId: question.id,
         claimId: claim.id,
@@ -365,6 +397,32 @@ export function AppStoreProvider({ children }: { children: ReactNode }): ReactNo
       }
     },
     [fail, refreshTraces, state.document, state.settings],
+  );
+
+  /**
+   * Record what the student changed after re-reading the source. Persisted onto
+   * the same checkpoint row, so the exported trace carries the revision beside
+   * the question and the explanation.
+   */
+  const recordRevision = useCallback<Store["recordRevision"]>(
+    async (question, revision) => {
+      if (!state.document) return;
+      const existing = state.responses[question.id];
+      if (!existing) return;
+      const revisedAt = new Date().toISOString();
+      dispatch({ type: "revision", questionId: question.id, revision: revision.trim(), revisedAt });
+      try {
+        await persistence.persistCheckpoint(state.document.id, question, {
+          ...existing,
+          revision: revision.trim(),
+          revisedAt,
+        });
+        void refreshTraces();
+      } catch (error) {
+        fail(error);
+      }
+    },
+    [fail, refreshTraces, state.document, state.responses],
   );
 
   const runExport = useCallback(
@@ -464,6 +522,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }): ReactNo
     buildCheckpoint,
     submitAnswer,
     setActiveQuestion: (questionId) => dispatch({ type: "active-question", questionId }),
+    recordRevision,
     runExport,
     refreshLlm,
     refreshTraces,

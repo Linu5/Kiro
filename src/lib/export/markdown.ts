@@ -35,6 +35,13 @@ export function renderTraceMarkdown(trace: ReasoningTrace, settings: AppSettings
   if (settings.projectTitle) lines.push(`| Project | ${escapeCell(settings.projectTitle)} |`);
   if (settings.studentName) lines.push(`| Student | ${escapeCell(settings.studentName)} |`);
   if (settings.supervisorName) lines.push(`| Supervisor | ${escapeCell(settings.supervisorName)} |`);
+  if (settings.checkpointLabel || settings.checkpointDate) {
+    lines.push(
+      `| Supervision checkpoint | ${escapeCell(
+        [settings.checkpointLabel, settings.checkpointDate].filter(Boolean).join(" \u00b7 "),
+      )} |`,
+    );
+  }
   lines.push(`| Exported | ${new Date(trace.exportedAt).toLocaleString()} |`);
   lines.push(`| Coach version | ${trace.appVersion} |`);
   lines.push(
@@ -75,6 +82,17 @@ export function renderTraceMarkdown(trace: ReasoningTrace, settings: AppSettings
   lines.push(scoreLine("Depth of reasoning", matrix.averageScore.depth));
   lines.push("");
   lines.push(`**Overall citation quality: ${matrix.averageScore.overall}/100**`);
+  lines.push("");
+
+  // Supervisor-facing summary: where evidence use is strong, weak or absent.
+  const strong = matrix.counts.high;
+  const adequate = matrix.counts.valid;
+  const weak = matrix.counts.weak + matrix.counts.unverified;
+  const absent = report.findings.filter((entry) => entry.mode === "missing-citation").length;
+  const revisions = trace.responses.filter((response) => response.revision).length;
+  lines.push(
+    `**Evidence use.** Strong: ${strong} \u00b7 adequate: ${adequate} \u00b7 weak or unverified: ${weak} \u00b7 claims with no citation at all: ${absent}. Revisions recorded after re-reading: ${revisions} of ${trace.responses.length} answered checkpoints.`,
+  );
   lines.push("");
   lines.push("| Band | Count |");
   lines.push("| --- | --- |");
@@ -180,6 +198,12 @@ export function renderTraceMarkdown(trace: ReasoningTrace, settings: AppSettings
       }
       lines.push(`**Student rationale.** ${response.rationale}`);
       lines.push("");
+      if (response.revision) {
+        lines.push(
+          `**Revision after re-reading${response.revisedAt ? ` (${new Date(response.revisedAt).toLocaleDateString()})` : ""}.** ${response.revision}`,
+        );
+        lines.push("");
+      }
       if (evaluation) {
         lines.push(`**AI reasoning.** ${evaluation.aiInsight}`);
         lines.push("");

@@ -1,7 +1,7 @@
-import { Bot, Check, ChevronRight, Lightbulb, Loader2, User } from "lucide-react";
+import { Bot, Check, ChevronRight, Lightbulb, Loader2, RefreshCcw, Save, User } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { AlignmentBadge, Button, Pill, ScoreGrid } from "./ui";
-import { DIMENSION_LABEL } from "@/lib/ai/socratic";
+import { DIMENSION_LABEL, REVISION_HINT, REVISION_QUESTION } from "@/lib/ai/socratic";
 import type { Evaluation, SocraticQuestion, StudentResponse } from "@/types";
 
 const textareaClass =
@@ -20,6 +20,7 @@ export function SocraticCard({
   pendingEvidence,
   busy,
   onSubmit,
+  onRecordRevision,
   onNext,
 }: {
   question: SocraticQuestion;
@@ -30,15 +31,18 @@ export function SocraticCard({
   pendingEvidence: string;
   busy: boolean;
   onSubmit: (input: { rationale: string; evidenceExcerpt: string }) => void;
+  onRecordRevision: (revision: string) => void;
   onNext: () => void;
 }): ReactNode {
   const [rationale, setRationale] = useState(response?.rationale ?? "");
   const [evidence, setEvidence] = useState(response?.evidenceExcerpt ?? "");
+  const [revision, setRevision] = useState(response?.revision ?? "");
   const [showHint, setShowHint] = useState(false);
 
   useEffect(() => {
     setRationale(response?.rationale ?? "");
     setEvidence(response?.evidenceExcerpt ?? "");
+    setRevision(response?.revision ?? "");
     setShowHint(false);
   }, [question.id, response]);
 
@@ -170,6 +174,49 @@ export function SocraticCard({
               </li>
             ))}
           </ul>
+
+          {/*
+            The fourth question from the proposal. It can only be answered once
+            the student has re-read the source, so it is asked here rather than
+            queued with the others, and it is recorded in the trace.
+          */}
+          <div className="mt-4 border-t border-hairline pt-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-[13px] font-semibold text-ink">
+                <RefreshCcw size={13} className="text-brand" />
+                {REVISION_QUESTION}
+              </p>
+              {response?.revisedAt && (
+                <Pill tone="good">
+                  recorded {new Date(response.revisedAt).toLocaleDateString()}
+                </Pill>
+              )}
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-faint">{REVISION_HINT}</p>
+            <textarea
+              value={revision}
+              onChange={(event) => setRevision(event.target.value)}
+              rows={3}
+              placeholder="e.g. narrowed the claim to crack detection only, because the study measured a bench rig rather than a rooftop."
+              className={textareaClass}
+              aria-label={REVISION_QUESTION}
+            />
+            <div className="mt-2 flex items-center gap-2">
+              <Button
+                variant="subtle"
+                icon={<Save size={13} />}
+                disabled={revision.trim().length < 3 || revision.trim() === (response?.revision ?? "")}
+                onClick={() => onRecordRevision(revision)}
+              >
+                {response?.revision ? "Update revision" : "Record revision"}
+              </Button>
+              {!response?.revision && (
+                <span className="text-[11px] text-ink-faint">
+                  Included in the supervisor's trace log.
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

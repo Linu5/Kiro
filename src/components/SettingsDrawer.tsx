@@ -103,6 +103,25 @@ export function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () =
                   onChange={(event) => updateSettings({ supervisorName: event.target.value })}
                 />
               </Field>
+              <Field
+                label="Supervision checkpoint"
+                hint="The meeting this trace is prepared for, e.g. a back-to-campus day."
+              >
+                <input
+                  className={inputClass}
+                  value={settings.checkpointLabel}
+                  onChange={(event) => updateSettings({ checkpointLabel: event.target.value })}
+                  placeholder="Back-to-campus day 2"
+                />
+              </Field>
+              <Field label="Checkpoint date">
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={settings.checkpointDate}
+                  onChange={(event) => updateSettings({ checkpointDate: event.target.value })}
+                />
+              </Field>
             </div>
           </div>
 

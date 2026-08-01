@@ -23,6 +23,8 @@ const DIMENSION_ORDER: SocraticDimension[] = [
   "limitations",
   "selection",
   "synthesis",
+  // Never planned: asked as a follow-up once the student has an answer to revise.
+  "revision",
 ];
 
 export const DIMENSION_LABEL: Record<SocraticDimension, string> = {
@@ -31,7 +33,18 @@ export const DIMENSION_LABEL: Record<SocraticDimension, string> = {
   limitations: "Source limitations",
   selection: "Selection rationale",
   synthesis: "Synthesis across sources",
+  revision: "Revision after re-reading",
 };
+
+/**
+ * The follow-up asked once a comparison exists, in the proposal's own words. It
+ * is deliberately not part of the planned question set: it can only be answered
+ * after the student has re-read the source, so it is attached to an answered
+ * question rather than queued alongside the others.
+ */
+export const REVISION_QUESTION = "What change did you make after re-reading the source?";
+export const REVISION_HINT =
+  "A revision can be to the claim, the citation, or neither - if nothing changed, say why the original still stands.";
 
 /**
  * Questions derived from integrity findings.
@@ -57,7 +70,14 @@ export function questionsFromFindings(
     if (mode === "undifferentiated-block-citation" || mode === "descriptive-listing-without-synthesis") {
       return "synthesis";
     }
-    if (mode === "lack-of-critical-evaluation" || mode === "unsupported-claim") return "limitations";
+    if (
+      mode === "lack-of-critical-evaluation" ||
+      mode === "unsupported-claim" ||
+      // A retraction question is about what the withdrawal invalidates.
+      mode === "inappropriate-or-discredited-source"
+    ) {
+      return "limitations";
+    }
     if (mode === "citation-chaining" || mode === "non-scholarly-source-as-scholarship") return "relevance";
     if (mode === "missing-citation" || mode === "fabricated-quotation") return "grounding";
     return "selection";
@@ -109,8 +129,8 @@ const FALLBACK: Record<SocraticDimension, (claim: Claim, marker: string) => { pr
     hint: "Quote the sentence, table or figure number you are relying on, not the topic of the paper.",
   }),
   relevance: (_claim, marker) => ({
-    prompt: `Is ${marker} direct evidence for this claim, or background context? Explain which, and why.`,
-    hint: "Direct evidence measures or tests the thing you are asserting; background only frames it.",
+    prompt: `Is ${marker} direct evidence for this claim, background context, or only a related example? Say which, and why.`,
+    hint: "Direct evidence measures or tests the thing you are asserting; background frames it; a related example resembles it without testing it.",
   }),
   limitations: (_claim, marker) => ({
     prompt: `What limitations of ${marker} - sample, setting, method or date - constrain how far your claim can go?`,
@@ -124,6 +144,7 @@ const FALLBACK: Record<SocraticDimension, (claim: Claim, marker: string) => { pr
     prompt: `You cite ${claim.citations.length} sources here. Where do they agree, and where would they disagree with each other?`,
     hint: "Bundled citations should not hide a disagreement between the sources.",
   }),
+  revision: () => ({ prompt: REVISION_QUESTION, hint: REVISION_HINT }),
 };
 
 function markerFor(claim: Claim, reference: ReferenceEntry | undefined): string {

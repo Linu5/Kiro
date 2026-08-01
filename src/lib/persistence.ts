@@ -101,6 +101,8 @@ export function toCheckpointRecord(
     studentRationale: response.rationale,
     evidenceExcerpt: response.evidenceExcerpt,
     answeredAt: response.answeredAt,
+    revision: response.revision,
+    revisedAt: response.revisedAt,
   };
 }
 
@@ -234,6 +236,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   studentName: "",
   supervisorName: "",
   projectTitle: "",
+  checkpointLabel: "",
+  checkpointDate: "",
 };
 
 export function loadSettings(): AppSettings {

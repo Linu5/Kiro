@@ -15,6 +15,7 @@ export function SocraticCheckpoint(): ReactNode {
     activeQuestionId,
     setActiveQuestion,
     submitAnswer,
+    recordRevision,
     buildCheckpoint,
     busy,
     claimsById,
@@ -109,6 +110,7 @@ export function SocraticCheckpoint(): ReactNode {
           pendingEvidence={pendingEvidence}
           busy={Boolean(busy)}
           onSubmit={(input) => void submitAnswer(question, input)}
+          onRecordRevision={(revision) => void recordRevision(question, revision)}
           onNext={() => goTo(activeIndex + 1)}
         />
       </div>

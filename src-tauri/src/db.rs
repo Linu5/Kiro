@@ -65,6 +65,11 @@ pub struct CheckpointRecord {
     pub student_rationale: String,
     pub evidence_excerpt: String,
     pub answered_at: String,
+    /// What the student changed after re-reading the source.
+    #[serde(default)]
+    pub revision: Option<String>,
+    #[serde(default)]
+    pub revised_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -151,7 +156,9 @@ CREATE TABLE IF NOT EXISTS checkpoints (
     question          TEXT NOT NULL,
     student_rationale TEXT NOT NULL DEFAULT '',
     evidence_excerpt  TEXT NOT NULL DEFAULT '',
-    answered_at       TEXT NOT NULL
+    answered_at       TEXT NOT NULL,
+    revision          TEXT,
+    revised_at        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS evaluations (
@@ -192,7 +199,34 @@ impl TraceStore {
         }
         let conn = Connection::open(path)?;
         conn.execute_batch(SCHEMA)?;
-        Ok(Self { conn })
+        let store = Self { conn };
+        store.migrate()?;
+        Ok(store)
+    }
+
+    /// Additive migrations for stores created by an earlier version.
+    ///
+    /// `CREATE TABLE IF NOT EXISTS` leaves an existing table untouched, so a new
+    /// column has to be added explicitly. Checked against `PRAGMA table_info`
+    /// rather than by catching the error, so a genuine failure is not swallowed.
+    fn migrate(&self) -> CoreResult<()> {
+        for (table, column, definition) in [
+            ("checkpoints", "revision", "TEXT"),
+            ("checkpoints", "revised_at", "TEXT"),
+        ] {
+            if !self.has_column(table, column)? {
+                self.conn
+                    .execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"))?;
+            }
+        }
+        Ok(())
+    }
+
+    fn has_column(&self, table: &str, column: &str) -> CoreResult<bool> {
+        let mut stmt = self
+            .conn
+            .prepare(&format!("SELECT 1 FROM pragma_table_info('{table}') WHERE name = ?1"))?;
+        Ok(stmt.exists([column])?)
     }
 
     pub fn save_document(&mut self, document: &DocumentRecord) -> CoreResult<()> {
@@ -273,12 +307,15 @@ impl TraceStore {
 
     pub fn save_checkpoint(&mut self, checkpoint: &CheckpointRecord) -> CoreResult<()> {
         self.conn.execute(
-            "INSERT INTO checkpoints (id, document_id, claim_id, reference_id, dimension, question, student_rationale, evidence_excerpt, answered_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            "INSERT INTO checkpoints (id, document_id, claim_id, reference_id, dimension, question, student_rationale, evidence_excerpt, answered_at, revision, revised_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
              ON CONFLICT(id) DO UPDATE SET
                student_rationale = excluded.student_rationale,
                evidence_excerpt = excluded.evidence_excerpt,
-               answered_at = excluded.answered_at",
+               answered_at = excluded.answered_at,
+               -- A later answer must not erase a revision already recorded.
+               revision = COALESCE(excluded.revision, checkpoints.revision),
+               revised_at = COALESCE(excluded.revised_at, checkpoints.revised_at)",
             params![
                 checkpoint.id,
                 checkpoint.document_id,
@@ -289,6 +326,8 @@ impl TraceStore {
                 checkpoint.student_rationale,
                 checkpoint.evidence_excerpt,
                 checkpoint.answered_at,
+                checkpoint.revision,
+                checkpoint.revised_at,
             ],
         )?;
         Ok(())
@@ -424,7 +463,7 @@ impl TraceStore {
             .collect::<Result<Vec<_>, _>>()?;
 
         let mut checkpoint_stmt = self.conn.prepare(
-            "SELECT id, document_id, claim_id, reference_id, dimension, question, student_rationale, evidence_excerpt, answered_at
+            "SELECT id, document_id, claim_id, reference_id, dimension, question, student_rationale, evidence_excerpt, answered_at, revision, revised_at
              FROM checkpoints WHERE document_id = ?1 ORDER BY answered_at",
         )?;
         let checkpoints = checkpoint_stmt
@@ -439,6 +478,8 @@ impl TraceStore {
                     student_rationale: row.get(6)?,
                     evidence_excerpt: row.get(7)?,
                     answered_at: row.get(8)?,
+                    revision: row.get(9)?,
+                    revised_at: row.get(10)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

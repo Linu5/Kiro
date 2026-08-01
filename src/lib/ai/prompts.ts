@@ -30,8 +30,10 @@ const DIMENSION_BRIEF: Record<SocraticDimension, string> = {
   grounding: "which exact passage, result or figure in the source supports the claim",
   limitations: "what limitations, sample constraints or context boundaries the source carries",
   selection: "why this source or sentence was chosen over alternative findings",
-  relevance: "whether the source is direct evidence or merely background framing",
+  relevance:
+    "whether the source is direct evidence for the claim, background context, or only a related example",
   synthesis: "how this source relates to the other sources cited nearby",
+  revision: "what the student changed in the claim or citation after re-reading the source",
 };
 
 function referenceBlock(reference: ReferenceEntry | undefined): string {

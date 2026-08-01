@@ -1,0 +1,13 @@
+Automated Fault Detection in Rooftop Solar Arrays
+
+Abstract
+This report investigates whether thermal imaging can replace manual inspection of
+rooftop photovoltaic arrays in tropical climates.
+
+1. Introduction
+Deep learning always outperforms threshold methods for photovoltaic fault classification [1].
+Thermal anomaly detection identifies cell cracking before power output degrades [2].
+
+References
+[1] Y. LeCun, Y. Bengio and G. Hinton, "Deep learning," Nature, vol. 521, 2015. doi:10.1038/nature14539
+[2] G. Salton and C. Buckley, "Term-weighting approaches in automatic text retrieval," Information Processing and Management, vol. 24, 1988. doi:10.1016/0306-4573(88)90021-0

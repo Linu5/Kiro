@@ -36,7 +36,7 @@ source-type comparison, plus the false-positive guards).
 | Questionable venue | ✓ | Naming patterns of weakly vetted publishing (`World/International Journal of Advanced…`, WJARR, IJSR…), plus failure to corroborate in either registry. |
 | Non-scholarly source presented as scholarship | ✓ | Blog/vendor/marketing URL patterns, escalated to `major` when the entry carries an effect size. Vendor *documentation* is explicitly exempt. |
 | Mutable or gated source inadequately documented | ✓ | Web source with no access date; market/analyst reports; a named section cited at directory level. |
-| Inappropriate or discredited source | ✓ | Registry retraction flag, with a guard note that discussing a retraction is legitimate. |
+| Inappropriate or discredited source (retraction) | ✓ | Three independent signals, because the registries are inconsistent: Crossref `updated-by[].type == "retraction"` on the article, the publisher's `RETRACTED:`/`WITHDRAWN` title prefix, and OpenAlex `is_retracted`. Reported `critical` with the retraction date and the notice DOI so the student can read the reason. Retraction **notices** cited as if they were studies are a separate `major` finding, and expressions of concern a third, at `major`/needs-evidence. Guard note records that discussing a retraction is legitimate. |
 | Insufficient scholarly grounding | ✓ | Counted over the whole list: ≥25% vendor/blog/web entries, standards excluded. |
 | Secondary-only bibliography | ✓ | Counted over the whole list: ≥40% review/survey titles. |
 
@@ -118,6 +118,24 @@ crediting "Rahman" for the Duives survey.
 Three false positives were found during this pass and fixed: an over-eager
 initials parser turning "Tsung-Yi Lin" into a mismatch, NFPA 130 reported as
 unfindable, and an abbreviated ICCV venue read as a venue mismatch.
+
+**Retraction pass** — the supplied corpus contains no retracted source (case 02's
+key states this deliberately), so this path was verified separately against real
+retracted DOIs in the packaged app: Wakefield 1998 (`10.1016/S0140-6736(97)11096-0`),
+its retraction notice (`…(10)60175-4`), the 2020 Surgisphere paper
+(`…(20)31180-6`), and a non-retracted control. **19/19 checks pass**: the article is
+flagged retracted with date `2010-02-06` and the notice DOI captured, its status
+drops from `verified` to `suspicious` (score 25), the notice is identified as a
+notice rather than a study, the control is untouched, the finding renders as
+`critical`, and its question reaches the Socratic checkpoint under the
+"Source limitations" dimension. Re-running the three benchmark cases afterwards
+produced **no** retraction or expression-of-concern findings, confirming the new
+checks do not fire on a corpus without them.
+
+This pass corrected a real defect: Crossref records the relationship from both
+ends, and the previous implementation read only `update-to`, which the *notice*
+carries. Wakefield 1998 has `update-to: null`, so a retracted article was detected
+only when OpenAlex happened to answer.
 
 ## 7. Known limits
 

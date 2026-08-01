@@ -111,6 +111,9 @@ export async function renderTracePdf(
     `${report.pageCount} pages / ${report.wordCount} words`,
     settings.studentName ? `Student: ${settings.studentName}` : null,
     settings.supervisorName ? `Supervisor: ${settings.supervisorName}` : null,
+    settings.checkpointLabel || settings.checkpointDate
+      ? `Checkpoint: ${[settings.checkpointLabel, settings.checkpointDate].filter(Boolean).join(" / ")}`
+      : null,
     `Exported: ${new Date(trace.exportedAt).toLocaleString()}`,
     `Engine: ${
       trace.evaluations.some((e) => e.generatedBy === "local-llm")
@@ -134,6 +137,10 @@ export async function renderTracePdf(
   write(
     `Authenticity ${matrix.averageScore.authenticity}/100    Relevance ${matrix.averageScore.relevance}/100    Depth ${matrix.averageScore.depth}/100    Overall ${matrix.averageScore.overall}/100`,
     { style: "bold" },
+  );
+  write(
+    `Evidence use - strong: ${matrix.counts.high}, adequate: ${matrix.counts.valid}, weak or unverified: ${matrix.counts.weak + matrix.counts.unverified}, claims with no citation: ${report.findings.filter((entry) => entry.mode === "missing-citation").length}. Revisions recorded: ${trace.responses.filter((response) => response.revision).length} of ${trace.responses.length}.`,
+    { colour: 90 },
   );
   write(
     (["high", "valid", "weak", "unverified"] as const)
@@ -223,6 +230,12 @@ export async function renderTracePdf(
         quote(response.evidenceExcerpt.replace(/\s+/g, " "));
       }
       write(`Student rationale: ${response.rationale}`, { indent: 8 });
+      if (response.revision) {
+        write(
+          `Revision after re-reading${response.revisedAt ? ` (${new Date(response.revisedAt).toLocaleDateString()})` : ""}: ${response.revision}`,
+          { indent: 8, colour: 60, style: "italic" },
+        );
+      }
       if (evaluation) {
         write(`AI reasoning: ${evaluation.aiInsight}`, { indent: 8, colour: 60 });
         write(`Expected evidence: ${evaluation.aiExpectedEvidence}`, { indent: 8, colour: 90, size: 9 });

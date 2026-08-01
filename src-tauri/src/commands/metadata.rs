@@ -49,6 +49,13 @@ pub struct AuthenticityVerdict {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title_overlap: Option<f64>,
     pub is_retracted: bool,
+    /// The cited work is itself a retraction notice, not a retracted study.
+    pub is_retraction_notice: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retraction_notice_doi: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retraction_date: Option<String>,
+    pub has_expression_of_concern: bool,
     pub is_indexed_in_doaj: bool,
     pub registries: Vec<String>,
     pub flags: Vec<String>,
@@ -70,6 +77,73 @@ struct Record {
     /// posted-content (preprint)...
     work_type: Option<String>,
     is_preprint: bool,
+    /// The cited work *is* a retraction notice, rather than a retracted work.
+    is_retraction_notice: bool,
+    /// DOI of the notice that retracted this work, when the registry links it.
+    retraction_notice_doi: Option<String>,
+    /// Date the retraction was recorded, `YYYY-MM-DD` where available.
+    retraction_date: Option<String>,
+    /// An expression of concern has been issued: weaker than retraction, but the
+    /// journal has publicly questioned the work.
+    expression_of_concern: bool,
+}
+
+/// Crossref `update-to` / `updated-by` entries, matched by relationship type.
+struct UpdateScan {
+    retraction: bool,
+    expression_of_concern: bool,
+    notice_doi: Option<String>,
+    date: Option<String>,
+}
+
+fn scan_updates(list: &serde_json::Value) -> UpdateScan {
+    let mut scan = UpdateScan {
+        retraction: false,
+        expression_of_concern: false,
+        notice_doi: None,
+        date: None,
+    };
+    let Some(entries) = list.as_array() else {
+        return scan;
+    };
+    for entry in entries {
+        let kind = entry["type"].as_str().unwrap_or_default().to_ascii_lowercase();
+        if kind.contains("retraction") || kind.contains("withdrawal") || kind.contains("removal") {
+            scan.retraction = true;
+            if scan.notice_doi.is_none() {
+                scan.notice_doi = entry["DOI"].as_str().map(str::to_string);
+            }
+            if scan.date.is_none() {
+                let parts = &entry["updated"]["date-parts"][0];
+                if let Some(year) = parts[0].as_i64() {
+                    let month = parts[1].as_i64().unwrap_or(1);
+                    let day = parts[2].as_i64().unwrap_or(1);
+                    scan.date = Some(format!("{year:04}-{month:02}-{day:02}"));
+                }
+            }
+        } else if kind.contains("concern") {
+            scan.expression_of_concern = true;
+        }
+    }
+    scan
+}
+
+/// Publishers prefix the title of a retracted or withdrawn article.
+fn title_marks_retraction(title: Option<&str>) -> bool {
+    let Some(title) = title else { return false };
+    let head = title.trim_start().to_ascii_uppercase();
+    head.starts_with("RETRACTED")
+        || head.starts_with("WITHDRAWN")
+        || head.starts_with("[RETRACTED")
+        || head.starts_with("RETRACTION NOTICE")
+}
+
+fn title_marks_notice(title: Option<&str>) -> bool {
+    let Some(title) = title else { return false };
+    let head = title.trim_start().to_ascii_uppercase();
+    // "Retraction—Ileal-lymphoid…", "Retraction notice to: …"
+    (head.starts_with("RETRACTION") || head.starts_with("WITHDRAWAL"))
+        && !head.starts_with("RETRACTED")
 }
 
 fn guard_host(url: &str) -> CoreResult<()> {
@@ -144,28 +218,31 @@ fn crossref_record(work: &serde_json::Value) -> Record {
         .unwrap_or_default();
     let work_type = work["type"].as_str().map(str::to_string);
     let is_preprint = work_type.as_deref() == Some("posted-content");
+    let title = work["title"][0].as_str().map(str::to_string);
+    let updated_by = scan_updates(&work["updated-by"]);
+    let update_to = scan_updates(&work["update-to"]);
     Record {
         authors,
         work_type,
         is_preprint,
-        title: work["title"][0].as_str().map(str::to_string),
+        title: title.clone(),
         publisher: work["publisher"].as_str().map(str::to_string),
         container_title: work["container-title"][0].as_str().map(str::to_string),
         year,
         cited_by_count: work["is-referenced-by-count"].as_i64(),
-        // Crossref marks retractions through update relationships / work type.
-        retracted: work["update-to"]
-            .as_array()
-            .map(|updates| {
-                updates.iter().any(|update| {
-                    update["type"]
-                        .as_str()
-                        .map(|kind| kind.contains("retraction"))
-                        .unwrap_or(false)
-                })
-            })
-            .unwrap_or(false)
-            || work["type"].as_str() == Some("retraction"),
+        // Crossref records the relationship from both ends, and the direction
+        // matters: the *retracted article* carries `updated-by` pointing at its
+        // notice, while the *notice* carries `update-to` pointing back at the
+        // article. Reading only `update-to` therefore detects notices and misses
+        // retracted papers - Wakefield 1998 has `update-to: null`. The publisher's
+        // "RETRACTED:" title prefix is a third, independent signal.
+        retracted: updated_by.retraction || title_marks_retraction(title.as_deref()),
+        is_retraction_notice: update_to.retraction
+            || work["type"].as_str() == Some("retraction")
+            || title_marks_notice(title.as_deref()),
+        retraction_notice_doi: updated_by.notice_doi.clone().or_else(|| update_to.notice_doi.clone()),
+        retraction_date: updated_by.date.clone().or_else(|| update_to.date.clone()),
+        expression_of_concern: updated_by.expression_of_concern || update_to.expression_of_concern,
         in_doaj: false,
     }
 }
@@ -194,7 +271,15 @@ fn openalex_record(work: &serde_json::Value) -> Record {
         container_title: source["display_name"].as_str().map(str::to_string),
         year: work["publication_year"].as_i64(),
         cited_by_count: work["cited_by_count"].as_i64(),
-        retracted: work["is_retracted"].as_bool().unwrap_or(false),
+        // OpenAlex exposes a single boolean, set on both the retracted work and
+        // its notice; `type` separates the two.
+        retracted: work["is_retracted"].as_bool().unwrap_or(false)
+            && work["type"].as_str() != Some("retraction"),
+        is_retraction_notice: work["type"].as_str() == Some("retraction")
+            || title_marks_notice(work["display_name"].as_str()),
+        retraction_notice_doi: None,
+        retraction_date: None,
+        expression_of_concern: false,
         in_doaj: source["is_in_doaj"].as_bool().unwrap_or(false),
     }
 }
@@ -343,6 +428,15 @@ pub async fn verify_source(
             work_type: cr.work_type.clone().or_else(|| oa.work_type.clone()),
             // Only a preprint if neither registry holds a published version.
             is_preprint: cr.is_preprint && oa.is_preprint,
+            // Either registry asserting a retraction is enough: the two disagree
+            // often, and a missed retraction is far worse than a redundant one.
+            is_retraction_notice: cr.is_retraction_notice || oa.is_retraction_notice,
+            retraction_notice_doi: cr
+                .retraction_notice_doi
+                .clone()
+                .or_else(|| oa.retraction_notice_doi.clone()),
+            retraction_date: cr.retraction_date.clone().or_else(|| oa.retraction_date.clone()),
+            expression_of_concern: cr.expression_of_concern || oa.expression_of_concern,
         },
         (Some(record), None) | (None, Some(record)) => Record {
             title: record.title.clone(),
@@ -355,6 +449,10 @@ pub async fn verify_source(
             authors: record.authors.clone(),
             work_type: record.work_type.clone(),
             is_preprint: record.is_preprint,
+            is_retraction_notice: record.is_retraction_notice,
+            retraction_notice_doi: record.retraction_notice_doi.clone(),
+            retraction_date: record.retraction_date.clone(),
+            expression_of_concern: record.expression_of_concern,
         },
         (None, None) => {
             let has_query = query.doi.is_some() || query.title.is_some();
@@ -371,6 +469,10 @@ pub async fn verify_source(
                 is_preprint: false,
                 title_overlap: None,
                 is_retracted: false,
+                is_retraction_notice: false,
+                retraction_notice_doi: None,
+                retraction_date: None,
+                has_expression_of_concern: false,
                 is_indexed_in_doaj: false,
                 registries,
                 flags: {
@@ -439,8 +541,34 @@ pub async fn verify_source(
     let mut status = "verified";
     if merged.retracted {
         status = "suspicious";
-        score = score.min(30);
-        flags.push("This work is marked as retracted. It must not be used as supporting evidence.".into());
+        score = score.min(25);
+        flags.push(format!(
+            "This work was retracted{}{}. It cannot carry supporting evidence.",
+            merged
+                .retraction_date
+                .as_ref()
+                .map(|date| format!(" on {date}"))
+                .unwrap_or_default(),
+            merged
+                .retraction_notice_doi
+                .as_ref()
+                .map(|doi| format!(" (notice: {doi})"))
+                .unwrap_or_default(),
+        ));
+    }
+    if merged.is_retraction_notice {
+        score = score.min(45);
+        flags.push(
+            "This record is a retraction notice, not the study it retracts. Findings cannot be attributed to it."
+                .into(),
+        );
+    }
+    if merged.expression_of_concern && !merged.retracted {
+        score -= 20;
+        flags.push(
+            "An expression of concern has been issued about this work: the journal has publicly questioned it."
+                .into(),
+        );
     }
     if score < 55 {
         status = "suspicious";
@@ -459,6 +587,10 @@ pub async fn verify_source(
         year: merged.year,
         cited_by_count: merged.cited_by_count,
         is_retracted: merged.retracted,
+        is_retraction_notice: merged.is_retraction_notice,
+        retraction_notice_doi: merged.retraction_notice_doi,
+        retraction_date: merged.retraction_date,
+        has_expression_of_concern: merged.expression_of_concern,
         is_indexed_in_doaj: merged.in_doaj,
         registries,
         flags,

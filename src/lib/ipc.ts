@@ -117,6 +117,9 @@ export interface CheckpointRecord {
   studentRationale: string;
   evidenceExcerpt: string;
   answeredAt: string;
+  /** What the student changed after re-reading the source (may be empty). */
+  revision?: string;
+  revisedAt?: string;
 }
 
 export interface EvaluationRecord {
