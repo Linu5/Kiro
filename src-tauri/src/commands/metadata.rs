@@ -1,3 +1,4 @@
+use chrono::Datelike;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -40,6 +41,19 @@ pub struct AuthenticityVerdict {
     pub year: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cited_by_count: Option<i64>,
+    /// Citations divided by years since publication, to one decimal. `None` when
+    /// the count cannot be interpreted: no year, or a work too recent to judge.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub citations_per_year: Option<f64>,
+    /// How the citation count was read, so the score adjustment is auditable
+    /// rather than silent: `tooRecent`, `wellCited`, `sparse`, `uncited`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub citation_signal: Option<String>,
+    /// A free full text is available somewhere, per OpenAlex.
+    pub is_open_access: bool,
+    /// OpenAlex OA colour: `gold`, `green`, `hybrid`, `bronze`, `diamond`, `closed`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oa_status: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub registry_authors: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -71,6 +85,11 @@ struct Record {
     cited_by_count: Option<i64>,
     retracted: bool,
     in_doaj: bool,
+    /// Free full text available, per OpenAlex `open_access.is_oa`. Crossref has
+    /// no dependable equivalent, so a Crossref-only record leaves this false.
+    is_open_access: bool,
+    /// OpenAlex `open_access.oa_status`: gold, green, hybrid, bronze, closed.
+    oa_status: Option<String>,
     /// Author list as the registry holds it, so the caller can compare names.
     authors: Vec<String>,
     /// Crossref/OpenAlex work type: journal-article, proceedings-article,
@@ -244,6 +263,10 @@ fn crossref_record(work: &serde_json::Value) -> Record {
         retraction_date: updated_by.date.clone().or_else(|| update_to.date.clone()),
         expression_of_concern: updated_by.expression_of_concern || update_to.expression_of_concern,
         in_doaj: false,
+        // Crossref's `license` array says a licence exists, not that the text is
+        // reachable, so inferring OA from it would overstate. Left to OpenAlex.
+        is_open_access: false,
+        oa_status: None,
     }
 }
 
@@ -262,6 +285,9 @@ fn openalex_record(work: &serde_json::Value) -> Record {
     let is_preprint = work_type.as_deref() == Some("preprint")
         || source["type"].as_str() == Some("repository")
         || work["primary_location"]["version"].as_str() == Some("submittedVersion");
+    // Already present in every response: neither the DOI lookup nor the title
+    // search sends a `select`, so this costs no additional request.
+    let open_access = &work["open_access"];
     Record {
         authors,
         work_type,
@@ -281,6 +307,8 @@ fn openalex_record(work: &serde_json::Value) -> Record {
         retraction_date: None,
         expression_of_concern: false,
         in_doaj: source["is_in_doaj"].as_bool().unwrap_or(false),
+        is_open_access: open_access["is_oa"].as_bool().unwrap_or(false),
+        oa_status: open_access["oa_status"].as_str().map(str::to_string),
     }
 }
 
@@ -419,6 +447,9 @@ pub async fn verify_source(
             cited_by_count: oa.cited_by_count.or(cr.cited_by_count),
             retracted: cr.retracted || oa.retracted,
             in_doaj: oa.in_doaj,
+            // Both OA fields are OpenAlex-only, so they come from that side.
+            is_open_access: oa.is_open_access,
+            oa_status: oa.oa_status.clone(),
             // Prefer whichever registry gave the fuller author list.
             authors: if cr.authors.len() >= oa.authors.len() {
                 cr.authors.clone()
@@ -446,6 +477,8 @@ pub async fn verify_source(
             cited_by_count: record.cited_by_count,
             retracted: record.retracted,
             in_doaj: record.in_doaj,
+            is_open_access: record.is_open_access,
+            oa_status: record.oa_status.clone(),
             authors: record.authors.clone(),
             work_type: record.work_type.clone(),
             is_preprint: record.is_preprint,
@@ -464,6 +497,10 @@ pub async fn verify_source(
                 container_title: None,
                 year: None,
                 cited_by_count: None,
+                citations_per_year: None,
+                citation_signal: None,
+                is_open_access: false,
+                oa_status: None,
                 registry_authors: Vec::new(),
                 work_type: None,
                 is_preprint: false,
@@ -507,8 +544,57 @@ pub async fn verify_source(
     if merged.in_doaj {
         score += 6;
     }
-    if merged.cited_by_count.unwrap_or(0) >= 5 {
-        score += 6;
+
+    // Citation counts accumulate with age, so a flat cutoff structurally
+    // penalises recent work: a paper published this year cannot have reached the
+    // count a 2015 one has, however sound it is. Two changes follow from that.
+    // First, judge the *rate* rather than the total. Second, inside the indexing
+    // lag window decline to judge at all - registries backfill citing works for
+    // months after publication, so an empty count there is an artefact of
+    // timing, not a property of the source.
+    //
+    // The adjustment stays bonus-only, as it was: being uncited is not evidence
+    // of being fabricated, and this axis only asks whether the source exists and
+    // is reputably indexed. A low rate therefore costs nothing.
+    //
+    // Note that "decline to judge" cannot mean "withhold the bonus": in a
+    // bonus-only scheme that is itself the age penalty, just moved. So a recent
+    // work that has already been cited earns the same credit on the strength of
+    // that uptake, without its rate being extrapolated from a partial year.
+    // Publication data is year-granular, so the window is expressed in years:
+    // 1 covers everything from roughly 6 to 24 months old, depending on where in
+    // the year the work appeared.
+    const CITATION_LAG_YEARS: i64 = 1;
+    // At least this many citations per year to earn the corroboration bonus.
+    const HEALTHY_CITATION_RATE: f64 = 1.0;
+    let current_year = i64::from(chrono::Utc::now().year());
+    let age_years = merged.year.map(|year| (current_year - year).max(0));
+    let mut citations_per_year: Option<f64> = None;
+    let mut citation_signal: Option<String> = None;
+    match (merged.cited_by_count, age_years) {
+        (Some(count), Some(age)) if age <= CITATION_LAG_YEARS => {
+            if count > 0 {
+                score += 6;
+                citation_signal = Some("earlyUptake".into());
+            } else {
+                citation_signal = Some("tooRecent".into());
+            }
+        }
+        (Some(count), Some(age)) => {
+            // `age` is at least CITATION_LAG_YEARS + 1 here, so never zero.
+            let rate = count as f64 / age as f64;
+            citations_per_year = Some((rate * 10.0).round() / 10.0);
+            if rate >= HEALTHY_CITATION_RATE {
+                score += 6;
+                citation_signal = Some("wellCited".into());
+            } else if count == 0 {
+                citation_signal = Some("uncited".into());
+            } else {
+                citation_signal = Some("sparse".into());
+            }
+        }
+        // No year, or no count: nothing interpretable, so no adjustment.
+        _ => {}
     }
 
     if let (Some(claimed), Some(found)) = (query.year, merged.year) {
@@ -586,6 +672,10 @@ pub async fn verify_source(
         title_overlap,
         year: merged.year,
         cited_by_count: merged.cited_by_count,
+        citations_per_year,
+        citation_signal,
+        is_open_access: merged.is_open_access,
+        oa_status: merged.oa_status,
         is_retracted: merged.retracted,
         is_retraction_notice: merged.is_retraction_notice,
         retraction_notice_doi: merged.retraction_notice_doi,

@@ -211,6 +211,22 @@ export interface AuthenticityVerdict {
   containerTitle?: string;
   year?: number;
   citedByCount?: number;
+  /**
+   * Citations per year since publication. Absent when the count cannot be
+   * interpreted: no year on the record, or the work is inside the indexing lag
+   * window, where an empty count reflects timing rather than the source.
+   */
+  citationsPerYear?: number;
+  /**
+   * How the count was read, so the score adjustment is auditable:
+   * `earlyUptake` and `wellCited` earn the corroboration credit, `tooRecent`,
+   * `sparse` and `uncited` neither earn nor lose anything.
+   */
+  citationSignal?: "tooRecent" | "earlyUptake" | "wellCited" | "sparse" | "uncited";
+  /** A free full text is available somewhere, per OpenAlex. */
+  isOpenAccess: boolean;
+  /** OpenAlex OA colour: gold, green, hybrid, bronze, diamond, closed. */
+  oaStatus?: string;
   /** Author list as recorded by the registry, for comparison with the entry. */
   registryAuthors?: string[];
   /** Crossref/OpenAlex work or hosting type: journal-article, posted-content... */

@@ -338,8 +338,22 @@ export function AppStoreProvider({ children }: { children: ReactNode }): ReactNo
         state.document.references,
         state.settings,
         state.document.findings,
-        (done, total) => {
-          dispatch({ type: "busy", busy: { message: "Preparing Socratic questions\u2026", done, total } });
+        (progress) => {
+          // Planning runs a local model once per claim, which is the longest
+          // wait in the app, so name the pair in flight the way verification
+          // names each reference instead of holding one static caption.
+          const label = progress.marker ?? `claim ${Math.min(progress.done + 1, progress.total)}`;
+          const finished = progress.stage === "complete" && progress.done === progress.total;
+          dispatch({
+            type: "busy",
+            busy: {
+              message: finished
+                ? "Assembling the checkpoint\u2026"
+                : `Planning questions for ${label} (p.${progress.claim.page})\u2026`,
+              done: progress.done,
+              total: progress.total,
+            },
+          });
         },
       );
       dispatch({ type: "questions", questions: plan.questions });

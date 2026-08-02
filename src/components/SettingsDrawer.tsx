@@ -1,21 +1,54 @@
 import { X } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import clsx from "clsx";
 import { Button, Field, Pill, inputClass } from "./ui";
 import { useApp } from "@/state/AppStore";
 
+/** Matches the `duration-200` classes below; the drawer unmounts once it ends. */
+const TRANSITION_MS = 200;
+
 export function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () => void }): ReactNode {
   const { settings, updateSettings, llm, refreshLlm } = useApp();
-  if (!open) return null;
+  // Two flags, because an exit transition needs the drawer to outlive `open`:
+  // `mounted` keeps it in the tree until the slide-out finishes, `shown` drives
+  // the transition and must flip in a frame *after* the first paint or the
+  // browser has no start value to animate from.
+  const [mounted, setMounted] = useState(open);
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      const frame = requestAnimationFrame(() => setShown(true));
+      return () => cancelAnimationFrame(frame);
+    }
+    setShown(false);
+    // Under `prefers-reduced-motion` index.css flattens the transition, so the
+    // drawer is already invisible here and this timer only delays removal.
+    const timer = setTimeout(() => setMounted(false), TRANSITION_MS);
+    return () => clearTimeout(timer);
+  }, [open]);
+
+  if (!mounted) return null;
 
   return (
     <div
-      className="fixed inset-0 z-40 flex justify-end bg-black/15"
+      className={clsx(
+        "fixed inset-0 z-40 flex justify-end bg-black/15 transition-opacity duration-200 ease-out",
+        shown ? "opacity-100" : "opacity-0",
+      )}
       role="dialog"
       aria-modal="true"
       aria-label="Settings"
     >
       <button type="button" aria-label="Close settings" className="flex-1 cursor-default" onClick={onClose} />
-      <aside className="scrollbar-thin w-[400px] overflow-y-auto border-l border-hairline bg-panel p-6 shadow-float">
+      <aside
+        className={clsx(
+          "scrollbar-thin w-[400px] overflow-y-auto border-l border-hairline bg-panel p-6 shadow-float",
+          "transition-transform duration-200 ease-out",
+          shown ? "translate-x-0" : "translate-x-full",
+        )}
+      >
         <div className="flex items-center justify-between">
           <h2 className="text-[17px] font-semibold text-ink">Settings</h2>
           <Button variant="ghost" icon={<X size={15} />} onClick={onClose} />

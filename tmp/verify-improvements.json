@@ -1,0 +1,328 @@
+{
+  "webview": "Edg/150.0.4078.105",
+  "document": "test_cases/test_cases/blind_test_fall_detection.docx",
+  "drawer": {
+    "beforeOpen": null,
+    "frames": [
+      {
+        "atMs": 0,
+        "overlayOpacity": 0,
+        "overlayTransition": "opacity 0.2s",
+        "panelTransform": "none",
+        "panelTransition": "transform, translate, scale, rotate 0.2s"
+      },
+      {
+        "atMs": 60,
+        "overlayOpacity": 0.623514,
+        "overlayTransition": "opacity 0.2s",
+        "panelTransform": "none",
+        "panelTransition": "transform, translate, scale, rotate 0.2s"
+      },
+      {
+        "atMs": 120,
+        "overlayOpacity": 0.86256,
+        "overlayTransition": "opacity 0.2s",
+        "panelTransform": "none",
+        "panelTransition": "transform, translate, scale, rotate 0.2s"
+      },
+      {
+        "atMs": 180,
+        "overlayOpacity": 0.994637,
+        "overlayTransition": "opacity 0.2s",
+        "panelTransform": "none",
+        "panelTransition": "transform, translate, scale, rotate 0.2s"
+      },
+      {
+        "atMs": 240,
+        "overlayOpacity": 1,
+        "overlayTransition": "opacity 0.2s",
+        "panelTransform": "none",
+        "panelTransition": "transform, translate, scale, rotate 0.2s"
+      },
+      {
+        "atMs": 300,
+        "overlayOpacity": 1,
+        "overlayTransition": "opacity 0.2s",
+        "panelTransform": "none",
+        "panelTransition": "transform, translate, scale, rotate 0.2s"
+      }
+    ],
+    "settled": {
+      "overlayOpacity": 1,
+      "overlayTransition": "opacity 0.2s",
+      "panelTransform": "none",
+      "panelTransition": "transform, translate, scale, rotate 0.2s"
+    },
+    "duringClose": {
+      "overlayOpacity": 0.375677,
+      "overlayTransition": "opacity 0.2s",
+      "panelTransform": "none",
+      "panelTransition": "transform, translate, scale, rotate 0.2s"
+    },
+    "afterClose": null
+  },
+  "verdicts": [
+    {
+      "query": "10.1038/nature14539",
+      "status": "verified",
+      "score": 90,
+      "matchedTitle": "Deep learning",
+      "publisher": "Springer Science and Business Media LLC",
+      "containerTitle": "Nature",
+      "year": 2015,
+      "citedByCount": 82783,
+      "citationsPerYear": 7525.7,
+      "citationSignal": "wellCited",
+      "isOpenAccess": true,
+      "oaStatus": "green",
+      "registryAuthors": [
+        "Yann LeCun",
+        "Yoshua Bengio",
+        "Geoffrey Hinton"
+      ],
+      "workType": "journal-article",
+      "isPreprint": false,
+      "titleOverlap": 1,
+      "isRetracted": false,
+      "isRetractionNotice": false,
+      "hasExpressionOfConcern": false,
+      "isIndexedInDoaj": false,
+      "registries": [
+        "crossref",
+        "openalex"
+      ],
+      "flags": [],
+      "checkedAt": "2026-08-01T15:27:28.054070200+00:00"
+    },
+    {
+      "query": "10.1016/j.measen.2025.101870",
+      "status": "verified",
+      "score": 96,
+      "matchedTitle": "Wearable sensor-based fall detection for elderly care using ensemble machine learning techniques",
+      "publisher": "Elsevier BV",
+      "containerTitle": "Measurement: Sensors",
+      "year": 2025,
+      "citedByCount": 11,
+      "citationSignal": "earlyUptake",
+      "isOpenAccess": true,
+      "oaStatus": "gold",
+      "registryAuthors": [
+        "Ch Gangadhar",
+        "P Pavithra Roy",
+        "R. Dinesh Kumar",
+        "Janjhyam Venkata Naga Ramesh",
+        "S. Ravikanth",
+        "N. Akhila"
+      ],
+      "workType": "journal-article",
+      "isPreprint": false,
+      "isRetracted": false,
+      "isRetractionNotice": false,
+      "hasExpressionOfConcern": false,
+      "isIndexedInDoaj": true,
+      "registries": [
+        "crossref",
+        "openalex"
+      ],
+      "flags": [],
+      "checkedAt": "2026-08-01T15:27:28.867465600+00:00"
+    },
+    {
+      "query": "10.1109/ACCESS.2019.2902718",
+      "status": "verified",
+      "score": 96,
+      "matchedTitle": "An Energy-Efficient Algorithm for Classification of Fall Types Using a Wearable Sensor",
+      "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+      "containerTitle": "IEEE Access",
+      "year": 2019,
+      "citedByCount": 23,
+      "citationsPerYear": 3.3,
+      "citationSignal": "wellCited",
+      "isOpenAccess": true,
+      "oaStatus": "gold",
+      "registryAuthors": [
+        "Soon Bin Kwon",
+        "Jeong-Ho Park",
+        "Chiheon Kwon",
+        "Hyung Joong Kong",
+        "Jae Youn Hwang",
+        "Hee Chan Kim"
+      ],
+      "workType": "journal-article",
+      "isPreprint": false,
+      "isRetracted": false,
+      "isRetractionNotice": false,
+      "hasExpressionOfConcern": false,
+      "isIndexedInDoaj": true,
+      "registries": [
+        "crossref",
+        "openalex"
+      ],
+      "flags": [],
+      "checkedAt": "2026-08-01T15:27:29.708895800+00:00"
+    },
+    {
+      "query": "10.9999/jaus.2021.04117",
+      "status": "notFound",
+      "score": 10,
+      "isOpenAccess": false,
+      "isPreprint": false,
+      "isRetracted": false,
+      "isRetractionNotice": false,
+      "hasExpressionOfConcern": false,
+      "isIndexedInDoaj": false,
+      "registries": [],
+      "flags": [
+        "Neither Crossref nor OpenAlex holds a record matching this reference. Treat as potentially hallucinated or predatory until the student produces the source."
+      ],
+      "checkedAt": "2026-08-01T15:27:30.563918700+00:00"
+    }
+  ],
+  "referenceRows": [
+    {
+      "marker": "[1]",
+      "strip": [
+        "Paywalled",
+        "journal article",
+        "cited 176× · 22/year",
+        "Source verified",
+        "crossref + openalex"
+      ],
+      "registryLine": "RF-based fall monitoring using convolutional neural networksY. Tian · 2018 · Proc. ACM Interact · 10.1145/3264947 Paywalledjournal articlecited 176× · 22/year"
+    },
+    {
+      "marker": "[2]",
+      "strip": [
+        "Open access · green",
+        "book chapter",
+        "cited 32× · 5.3/year",
+        "Source verified",
+        "crossref + openalex"
+      ],
+      "registryLine": "A machine learning based fall detection for elderly people with neurodegenerative disordersN. Nahar · 2020 · 10.1007/978-3-030-59277-6_18 Open access · greenbook chaptercited 32× · 5.3/year"
+    },
+    {
+      "marker": "[3]",
+      "strip": [
+        "Open access · gold",
+        "DOAJ",
+        "journal article",
+        "cited 23× · 3.3/year",
+        "Source verified",
+        "crossref + openalex"
+      ],
+      "registryLine": "An energy-efficient algorithm for classification of fall types using a wearable sensorS. B. Kwon · 2019 · 10.1109/ACCESS.2019.2902718 Open access · goldDOAJjournal articlecited 23× · 3.3/year"
+    },
+    {
+      "marker": "[4]",
+      "strip": [
+        "Paywalled",
+        "journal article",
+        "cited 80× · 10/year",
+        "Wrong date",
+        "Source verified",
+        "crossref + openalex"
+      ],
+      "registryLine": "Impact of sampling rate on wearable-based fall detection systems based on machine learning modelsK. Liu · 2016 · 10.1109/JSEN.2018.2872835Year mismatch: the report cites 2016, the registry records 2018. Paywalledjournal articlecited 80× · 10/yearWrong date"
+    },
+    {
+      "marker": "[5]",
+      "strip": [
+        "Open access · gold",
+        "DOAJ",
+        "journal article",
+        "cited 70× · 8.8/year",
+        "Source verified",
+        "crossref + openalex"
+      ],
+      "registryLine": "Supporting independent living for older adults; employing a visual based fall detection through analysing the motion and shape of the human bodyA. Lotfi · 2018 · 10.1109/ACCESS.2018.2881237 Open access · goldDOAJjournal articlecited 70× · 8.8/year"
+    },
+    {
+      "marker": "[6]",
+      "strip": [
+        "Open access · green",
+        "journal article",
+        "cited 179× · 25.6/year",
+        "Source verified",
+        "crossref + openalex"
+      ],
+      "registryLine": "Fall detection system for elderly people using IoT and ensemble machine learning algorithmD. Yacchirema · 2019 · Ubiquitous Comput., 2019 · 10.1007/s00779-018-01196-8 Open access · greenjournal articlecited 179× · 25.6/year"
+    },
+    {
+      "marker": "[7]",
+      "strip": [
+        "Paywalled",
+        "journal article",
+        "cited 61× · 8.7/year",
+        "Orphan reference",
+        "Source verified",
+        "crossref + openalex"
+      ],
+      "registryLine": "A low power fall sensing technology based on fd-cnnJ. He · 2019 · 10.1109/JSEN.2019.2903482 Paywalledjournal articlecited 61× · 8.7/yearOrphan reference"
+    },
+    {
+      "marker": "[8]",
+      "strip": [
+        "Paywalled",
+        "proceedings article",
+        "cited 42× · 2.8/year",
+        "Source verified",
+        "crossref + openalex"
+      ],
+      "registryLine": "System for monitoring and fall detection of patients using mobile 3-axis accelerometer sensorsP. Mostarac · 2011 · Proc. IEEE Int · 10.1109/MeMeA.2011.5966724 Paywalledproceedings articlecited 42× · 2.8/year"
+    },
+    {
+      "marker": "[9]",
+      "strip": [
+        "Fabricated reference",
+        "Source not found"
+      ],
+      "registryLine": ""
+    },
+    {
+      "marker": "[10]",
+      "strip": [
+        "Open access · green",
+        "journal article",
+        "cited 82,783× · 7525.7/year",
+        "Identifier mismatch",
+        "Incorrect or incomplete metadata",
+        "Wrong date",
+        "Source suspicious",
+        "crossref + openalex"
+      ],
+      "registryLine": "Piezoresistive insole arrays for real-time fall-risk scoring in home-based elderly monitoringB. Osei · 2019 · Eng., vol · 10.1038/nature14539Year mismatch: the report cites 2019, the registry records 2015. Title differs from the registry record (overlap 0%): \"Deep learning\". Open access · greenjournal articlecited 82,783× · 7525.7/yearIdentifier mismatchIncorrect or incomplete metadataWrong date"
+    },
+    {
+      "marker": "[11]",
+      "strip": [
+        "Open access · gold",
+        "DOAJ",
+        "journal article",
+        "cited 23× · 3.3/year",
+        "Duplicate entry",
+        "Source verified",
+        "crossref + openalex"
+      ],
+      "registryLine": "Energy-efficient fall-type classification using a wearable sensorS. Kwon · 2019 · 10.1109/ACCESS.2019.2902718Title differs from the registry record (overlap 62%): \"An Energy-Efficient Algorithm for Classification of Fall Types Using a Wearable Sensor\". Open access · goldDOAJjournal articlecited 23× · 3.3/yearDuplicate entry"
+    },
+    {
+      "marker": "[12]",
+      "strip": [
+        "Open access · gold",
+        "DOAJ",
+        "journal article",
+        "cited 11× already · too new to read a rate into",
+        "Incorrect or incomplete metadata",
+        "Source verified",
+        "crossref + openalex"
+      ],
+      "registryLine": "Wearable sensor-based fall detection for elderly care using ensemble machine learning techniquesN. Akhila · 2025 · 10.1016/j.measen.2025.101870 Open access · goldDOAJjournal articlecited 11× already · too new to read a rate intoIncorrect or incomplete metadata"
+    }
+  ],
+  "guardLine": "Citation counts reflect a source's age and field, not how well it supports your claim. They are shown as registry context only, carry no finding, and a low count is never treated as a fault. Open access status says the full text is reachable, not that it is sound.",
+  "planningCaptions": [
+    "Socratic Citation CoachSIT capstone citation integrityDocument Overview9Thesis, claims, source checksSocratic Checkpoint"
+  ],
+  "errors": []
+}

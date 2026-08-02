@@ -24,6 +24,7 @@ export function unverifiedVerdict(reason: string): AuthenticityVerdict {
     score: 50,
     isRetracted: false,
     isIndexedInDoaj: false,
+    isOpenAccess: false,
     registries: [],
     flags: [reason],
     checkedAt: new Date().toISOString(),

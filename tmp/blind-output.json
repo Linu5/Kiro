@@ -1,0 +1,355 @@
+{
+  "document": "test_cases/test_cases/blind_test_fall_detection.docx",
+  "webview": "Edg/150.0.4078.105",
+  "errors": [],
+  "config": {
+    "llmBaseUrl": "http://127.0.0.1:11434",
+    "llmModel": "llama3",
+    "metadataEnabled": true,
+    "checkpointBudget": 8,
+    "studentName": "",
+    "supervisorName": "",
+    "projectTitle": "",
+    "checkpointLabel": "Blind benchmark 04_fall_detection",
+    "checkpointDate": "2026-08-01"
+  },
+  "llmStatus": {
+    "reachable": true,
+    "baseUrl": "http://127.0.0.1:11434",
+    "models": [
+      "llama3:latest"
+    ]
+  },
+  "header": "2. Related Workblind_test_fall_detection.docx · 2 pages · 9 cited claims · 12 referencesllama3 readyRecheckClearSettings",
+  "timings": {
+    "parseMs": 522,
+    "verifyMs": 10702,
+    "planMs": 25525
+  },
+  "parseSummary": [
+    {
+      "label": "Pages",
+      "value": "2"
+    },
+    {
+      "label": "Words",
+      "value": "927"
+    },
+    {
+      "label": "Cited claims",
+      "value": "9"
+    },
+    {
+      "label": "References",
+      "value": "12"
+    },
+    {
+      "label": "Unmatched markers",
+      "value": "1"
+    },
+    {
+      "label": "Flagged sources",
+      "value": "2"
+    },
+    {
+      "label": "Integrity findings",
+      "value": "10"
+    },
+    {
+      "label": "Critical",
+      "value": "4"
+    }
+  ],
+  "references": [
+    {
+      "marker": "[1]",
+      "verdict": "Source verified",
+      "registries": "crossref + openalex",
+      "modePills": [
+        "Source verified"
+      ],
+      "title": "RF-based fall monitoring using convolutional neural networks",
+      "meta": "Y. Tian · 2018 · Proc. ACM Interact · 10.1145/3264947",
+      "flags": []
+    },
+    {
+      "marker": "[2]",
+      "verdict": "Source verified",
+      "registries": "crossref + openalex",
+      "modePills": [
+        "Source verified"
+      ],
+      "title": "A machine learning based fall detection for elderly people with neurodegenerative disorders",
+      "meta": "N. Nahar · 2020 · 10.1007/978-3-030-59277-6_18",
+      "flags": []
+    },
+    {
+      "marker": "[3]",
+      "verdict": "Source verified",
+      "registries": "crossref + openalex",
+      "modePills": [
+        "Source verified"
+      ],
+      "title": "An energy-efficient algorithm for classification of fall types using a wearable sensor",
+      "meta": "S. B. Kwon · 2019 · 10.1109/ACCESS.2019.2902718",
+      "flags": []
+    },
+    {
+      "marker": "[4]",
+      "verdict": "Source verified",
+      "registries": "crossref + openalex",
+      "modePills": [
+        "Wrong date",
+        "Source verified"
+      ],
+      "title": "Impact of sampling rate on wearable-based fall detection systems based on machine learning models",
+      "meta": "K. Liu · 2016 · 10.1109/JSEN.2018.2872835",
+      "flags": [
+        "Year mismatch: the report cites 2016, the registry records 2018."
+      ]
+    },
+    {
+      "marker": "[5]",
+      "verdict": "Source verified",
+      "registries": "crossref + openalex",
+      "modePills": [
+        "Source verified"
+      ],
+      "title": "Supporting independent living for older adults; employing a visual based fall detection through analysing the motion and shape of the human body",
+      "meta": "A. Lotfi · 2018 · 10.1109/ACCESS.2018.2881237",
+      "flags": []
+    },
+    {
+      "marker": "[6]",
+      "verdict": "Source verified",
+      "registries": "crossref + openalex",
+      "modePills": [
+        "Source verified"
+      ],
+      "title": "Fall detection system for elderly people using IoT and ensemble machine learning algorithm",
+      "meta": "D. Yacchirema · 2019 · Ubiquitous Comput., 2019 · 10.1007/s00779-018-01196-8",
+      "flags": []
+    },
+    {
+      "marker": "[7]",
+      "verdict": "Source verified",
+      "registries": "crossref + openalex",
+      "modePills": [
+        "Orphan reference",
+        "Source verified"
+      ],
+      "title": "A low power fall sensing technology based on fd-cnn",
+      "meta": "J. He · 2019 · 10.1109/JSEN.2019.2903482",
+      "flags": []
+    },
+    {
+      "marker": "[8]",
+      "verdict": "Source verified",
+      "registries": "crossref + openalex",
+      "modePills": [
+        "Source verified"
+      ],
+      "title": "System for monitoring and fall detection of patients using mobile 3-axis accelerometer sensors",
+      "meta": "P. Mostarac · 2011 · Proc. IEEE Int · 10.1109/MeMeA.2011.5966724",
+      "flags": []
+    },
+    {
+      "marker": "[9]",
+      "verdict": "Source not found",
+      "registries": "",
+      "modePills": [
+        "Fabricated reference",
+        "Source not found"
+      ],
+      "title": "Multimodal inertial–acoustic fusion for pre-impact fall prediction in ambulatory elderly cohorts",
+      "meta": "B. Okafor · 2021 · Ambient Intell · 10.9999/jaus.2021.04117",
+      "flags": [
+        "Neither Crossref nor OpenAlex holds a record matching this reference. Treat as potentially hallucinated or predatory until the student produces the source."
+      ]
+    },
+    {
+      "marker": "[10]",
+      "verdict": "Source suspicious",
+      "registries": "crossref + openalex",
+      "modePills": [
+        "Identifier mismatch",
+        "Incorrect or incomplete metadata",
+        "Wrong date",
+        "Source suspicious"
+      ],
+      "title": "Piezoresistive insole arrays for real-time fall-risk scoring in home-based elderly monitoring",
+      "meta": "B. Osei · 2019 · Eng., vol · 10.1038/nature14539",
+      "flags": [
+        "Year mismatch: the report cites 2019, the registry records 2015. Title differs from the registry record (overlap 0%): \"Deep learning\"."
+      ]
+    },
+    {
+      "marker": "[11]",
+      "verdict": "Source verified",
+      "registries": "crossref + openalex",
+      "modePills": [
+        "Duplicate entry",
+        "Source verified"
+      ],
+      "title": "Energy-efficient fall-type classification using a wearable sensor",
+      "meta": "S. Kwon · 2019 · 10.1109/ACCESS.2019.2902718",
+      "flags": [
+        "Title differs from the registry record (overlap 62%): \"An Energy-Efficient Algorithm for Classification of Fall Types Using a Wearable Sensor\"."
+      ]
+    },
+    {
+      "marker": "[12]",
+      "verdict": "Source verified",
+      "registries": "crossref + openalex",
+      "modePills": [
+        "Incorrect or incomplete metadata",
+        "Source verified"
+      ],
+      "title": "Wearable sensor-based fall detection for elderly care using ensemble machine learning techniques",
+      "meta": "N. Akhila · 2025 · 10.1016/j.measen.2025.101870",
+      "flags": []
+    }
+  ],
+  "findingsFromUi": [
+    {
+      "severity": "Critical",
+      "mode": "Duplicate entry",
+      "markers": [
+        "[11]",
+        "[3]"
+      ],
+      "needsEvidence": false,
+      "summary": "[11] duplicates [3]",
+      "detail": "[11] and [3] share the same DOI (10.1109/ACCESS.2019.2902718) with altered metadata. Two numbers for one source let the prose present a single study as independent corroboration.",
+      "question": "Are [3] and [11] the same study? If so, does any sentence treat them as two?",
+      "guardNote": "Are [3] and [11] the same study? If so, does any sentence treat them as two?"
+    },
+    {
+      "severity": "Major",
+      "mode": "Phantom citation",
+      "markers": [
+        "[13]"
+      ],
+      "needsEvidence": false,
+      "summary": "[13] is cited in the text but has no bibliography entry",
+      "detail": "The list ends at [12]. [13] is cited on page 1 and points at nothing, so whatever it supports has no source at all.",
+      "question": "",
+      "guardNote": "What source is [13]? Add the entry, or remove the claim that leans on it."
+    },
+    {
+      "severity": "Moderate",
+      "mode": "Orphan reference",
+      "markers": [
+        "[7]"
+      ],
+      "needsEvidence": false,
+      "summary": "[7] appears in the bibliography but is never cited",
+      "detail": "Set difference between in-text markers and list entries leaves [7] uncited: \"A low power fall sensing technology based on fd-cnn\". Either it informed the chapter and should be cited, or it should be removed.",
+      "question": "Did you use [7]? If so, which sentence should carry it?",
+      "guardNote": "Did you use [7]? If so, which sentence should carry it?"
+    },
+    {
+      "severity": "Advisory",
+      "mode": "Inconsistent citation system",
+      "markers": [
+        "[1]",
+        "[3]",
+        "[6]",
+        "[2]",
+        "[4]"
+      ],
+      "needsEvidence": false,
+      "summary": "Reference numbers do not follow the order of first citation",
+      "detail": "First-citation order begins 8, 1, 5, 3, 12, 6, 2, 9, 13, 4. Under IEEE and Vancouver numbering, entry [1] is the first source cited, [2] the second, and so on, which lets a reader move between text and list without searching. 5 marker(s) appear after a higher-numbered one.",
+      "question": "",
+      "guardNote": "Advisory only: ordering is a presentation convention and says nothing about whether any cited source is sound."
+    },
+    {
+      "severity": "Critical",
+      "mode": "Fabricated reference",
+      "markers": [
+        "[9]"
+      ],
+      "needsEvidence": false,
+      "summary": "The DOI is well formed but resolves to nothing",
+      "detail": "10.9999/jaus.2021.04117 uses a real registrant prefix, so it passes format validation, yet neither Crossref nor OpenAlex holds it. A DOI that looks right and resolves to nothing is the signature of a fabricated reference. Any figure attributed to [9] has no traceable source.",
+      "question": "Show where you obtained [9]. Can you open the source and point to the passage you used?",
+      "guardNote": "Show where you obtained [9]. Can you open the source and point to the passage you used?"
+    },
+    {
+      "severity": "Critical",
+      "mode": "Identifier mismatch",
+      "markers": [
+        "[10]"
+      ],
+      "needsEvidence": false,
+      "summary": "The DOI resolves to a different work",
+      "detail": "10.1038/nature14539 is live, but it returns \"Deep learning\" (2015), not \"Piezoresistive insole arrays for real-time fall-risk scoring in home-based elderly monitoring\". Testing whether a DOI resolves is not enough; the resolved title has to match the cited one.",
+      "question": "Which work did you actually read for [10] - the one you titled, or the one this DOI returns?",
+      "guardNote": "Which work did you actually read for [10] - the one you titled, or the one this DOI returns?"
+    },
+    {
+      "severity": "Critical",
+      "mode": "Incorrect or incomplete metadata",
+      "markers": [
+        "[10]"
+      ],
+      "needsEvidence": false,
+      "summary": "None of the listed authors appear on the work this identifier returns",
+      "detail": "Registry authors for 10.1038/nature14539: Yann LeCun; Yoshua Bengio; Geoffrey Hinton. The entry lists: B. Osei; R. Whitfield. Title-only matching passes this reference, which is why the author list has to be compared too.",
+      "question": "",
+      "guardNote": "Comparison folds diacritics and accepts particle and single-syllable surnames, so \"Ondřej\", \"van Beek\" and \"He\" do not trigger it."
+    },
+    {
+      "severity": "Major",
+      "mode": "Incorrect or incomplete metadata",
+      "markers": [
+        "[12]"
+      ],
+      "needsEvidence": false,
+      "summary": "Author list is incomplete: 2 listed, 6 on the record",
+      "detail": "The record for 10.1016/j.measen.2025.101870 names Ch Gangadhar; P Pavithra Roy; R. Dinesh Kumar; Janjhyam Venkata Naga Ramesh; S. Ravikanth; N. Akhila. The entry omits 4 of them without \"et al.\".",
+      "question": "Should [12] credit every author, or be shortened with \"et al.\"?",
+      "guardNote": "Should [12] credit every author, or be shortened with \"et al.\"?"
+    },
+    {
+      "severity": "Major",
+      "mode": "Wrong date",
+      "markers": [
+        "[4]"
+      ],
+      "needsEvidence": false,
+      "summary": "Entry dated 2016, but its own DOI encodes 2018",
+      "detail": "The DOI 10.1109/JSEN.2018.2872835 carries 2018 in its suffix while the entry states 2016. No lookup is needed to see the contradiction; one of the two is wrong.",
+      "question": "Which year is right for [4], and did you take the date from the record or from another citation of it?",
+      "guardNote": "Which year is right for [4], and did you take the date from the record or from another citation of it?"
+    },
+    {
+      "severity": "Moderate",
+      "mode": "Wrong date",
+      "markers": [
+        "[10]"
+      ],
+      "needsEvidence": false,
+      "summary": "The registry records 2015, the entry says 2019",
+      "detail": "Registry record for 10.1038/nature14539: 2015. Entry: 2019. Preprint, online-first and issue dates are commonly confused.",
+      "question": "",
+      "guardNote": "Registry record for 10.1038/nature14539: 2015. Entry: 2019. Preprint, online-first and issue dates are commonly confused."
+    }
+  ],
+  "findingsFilterCounts": [
+    "All 10",
+    "Document and list structure 4",
+    "What the citation asserts 6"
+  ],
+  "checkpointNotice": "24 questions prepared: 5 targeted at specific integrity findings, the rest generated by the local model.",
+  "firstQuestion": {
+    "dimension": "",
+    "prompt": "Which specific sentence or paragraph in [8] explicitly states 'early implementations suffered elevated false-alarm rates during vigorous non-fall activities such as sitting down quickly'?",
+    "counter": "Question 1 of 24 · local model"
+  },
+  "exportFiles": [
+    "reasoning-trace_2-related-work_2026-08-01.md"
+  ],
+  "exportChars": 20497
+}

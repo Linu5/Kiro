@@ -1,11 +1,65 @@
-import { AlertTriangle, BookOpen, Play, Quote, Target } from "lucide-react";
+import { AlertTriangle, BookOpen, Lock, Play, Quote, Target, Unlock } from "lucide-react";
 import type { ReactNode } from "react";
+import type { AuthenticityVerdict } from "@/types";
 import { AuthenticityBadge, Button, Card, EmptyState, Pill } from "@/components/ui";
 import { UploadZone } from "@/components/UploadZone";
 import { FindingsPanel } from "@/components/FindingsPanel";
 import { useApp } from "@/state/AppStore";
 import { selectCheckpointClaims } from "@/lib/parsing";
 import { findingsForReference, MODE_LABEL } from "@/lib/integrity";
+
+/**
+ * Registry context for one entry: what Crossref/OpenAlex actually returned,
+ * beyond the verdict badge. Citation count is reported with the reading the
+ * scorer applied to it, because the score already depends on that reading; a
+ * bare number invites "highly cited" to stand in for "supports my claim".
+ */
+function RegistryRecord({ verdict }: { verdict?: AuthenticityVerdict }): ReactNode {
+  if (!verdict || verdict.status === "unverified") return null;
+
+  const citations = ((): string | null => {
+    if (verdict.citedByCount === undefined) return null;
+    const count = verdict.citedByCount.toLocaleString();
+    switch (verdict.citationSignal) {
+      case "tooRecent":
+        // Registries backfill citing works for months, so an empty count on a
+        // new paper says nothing. The scorer draws no conclusion, nor does this.
+        return "published too recently for a citation count to mean anything";
+      case "earlyUptake":
+        return `cited ${count}\u00d7 already \u00b7 too new to read a rate into`;
+      case "uncited":
+        return "not cited elsewhere yet";
+      case "wellCited":
+      case "sparse":
+        return `cited ${count}\u00d7 \u00b7 ${verdict.citationsPerYear ?? 0}/year`;
+      default:
+        return `cited ${count}\u00d7`;
+    }
+  })();
+
+  // Only OpenAlex reports open access, so silence is "not known" for a
+  // Crossref-only record, not "paywalled".
+  const openAccessKnown = verdict.registries.includes("openalex");
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      {openAccessKnown && verdict.isOpenAccess && (
+        <Pill tone="good" title="A free full text is available, so the source can be opened and checked.">
+          <Unlock size={10} /> Open access{verdict.oaStatus ? ` \u00b7 ${verdict.oaStatus}` : ""}
+        </Pill>
+      )}
+      {openAccessKnown && !verdict.isOpenAccess && (
+        <Pill title="No free full text was found. You may need library access to read it.">
+          <Lock size={10} /> Paywalled
+        </Pill>
+      )}
+      {verdict.isIndexedInDoaj && <Pill title="The journal is listed in the Directory of Open Access Journals.">DOAJ</Pill>}
+      {verdict.isPreprint && <Pill tone="warn" title="The registry holds a preprint or repository copy, not a published version.">Preprint</Pill>}
+      {verdict.workType && <Pill>{verdict.workType.replace(/-/g, " ")}</Pill>}
+      {citations && <span className="text-[11px] text-ink-faint">{citations}</span>}
+    </div>
+  );
+}
 
 /** Phase 1 dashboard: what the parser found, and how trustworthy the sources are. */
 export function DocumentOverview(): ReactNode {
@@ -142,7 +196,8 @@ export function DocumentOverview(): ReactNode {
             "Bibliography" and that entries start on their own line.
           </EmptyState>
         ) : (
-          <ul className="divide-y divide-hairline">
+          <>
+            <ul className="divide-y divide-hairline">
             {report.references.map((reference) => (
               <li key={reference.id} className="flex items-start gap-4 py-3 first:pt-0 last:pb-0">
                 <span className="mt-0.5 w-12 shrink-0 text-[11px] font-semibold text-brand">{reference.marker}</span>
@@ -158,6 +213,7 @@ export function DocumentOverview(): ReactNode {
                       {reference.authenticity.flags.join(" ")}
                     </p>
                   ) : null}
+                  <RegistryRecord verdict={reference.authenticity} />
                   {findingsForReference(report.findings, reference.id).length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {findingsForReference(report.findings, reference.id).map((finding) => (
@@ -180,7 +236,13 @@ export function DocumentOverview(): ReactNode {
                 </div>
               </li>
             ))}
-          </ul>
+            </ul>
+            <p className="mt-4 border-t border-hairline pt-3 text-[11px] leading-relaxed text-ink-faint">
+              Citation counts reflect a source's age and field, not how well it supports your claim. They
+              are shown as registry context only, carry no finding, and a low count is never treated as a
+              fault. Open access status says the full text is reachable, not that it is sound.
+            </p>
+          </>
         )}
       </Card>
 

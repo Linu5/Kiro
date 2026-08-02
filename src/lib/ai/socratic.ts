@@ -224,6 +224,23 @@ export async function questionsForClaim(
   }
 }
 
+/**
+ * Progress for one step of planning. Reported *before* each claim as well as
+ * after, so the label names the pair being worked on rather than the last one
+ * finished: a local model takes seconds per claim, and a caption that lags by a
+ * whole step reads as a stall.
+ */
+export interface PlanProgress {
+  /** Claims fully planned so far. */
+  done: number;
+  total: number;
+  /** The claim now being questioned. */
+  claim: Claim;
+  /** Marker of the citation on that claim, when one resolved to an entry. */
+  marker?: string;
+  stage: "questioning" | "complete";
+}
+
 export interface CheckpointPlan {
   questions: SocraticQuestion[];
   usedModel: boolean;
@@ -240,7 +257,7 @@ export async function planCheckpoint(
   references: ReferenceEntry[],
   settings: AppSettings,
   findings: IntegrityFinding[] = [],
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: (progress: PlanProgress) => void,
 ): Promise<CheckpointPlan> {
   const byId = new Map(references.map((reference) => [reference.id, reference] as const));
   const questions: SocraticQuestion[] = [];
@@ -250,6 +267,9 @@ export async function planCheckpoint(
   for (const [index, claim] of claims.entries()) {
     const referenceId = claim.citations.find((citation) => citation.referenceId)?.referenceId;
     const reference = referenceId ? byId.get(referenceId) : undefined;
+
+    const step = { total: claims.length, claim, marker: reference?.marker };
+    onProgress?.({ ...step, done: index, stage: "questioning" });
 
     const targeted = questionsFromFindings(claim, reference, findings);
     fromFindings += targeted.length;
@@ -261,7 +281,7 @@ export async function planCheckpoint(
     questions.push(
       ...[...targeted, ...generic].map((question, order) => ({ ...question, order })),
     );
-    onProgress?.(index + 1, claims.length);
+    onProgress?.({ ...step, done: index + 1, stage: "complete" });
   }
 
   return { questions, usedModel, fromFindings };
