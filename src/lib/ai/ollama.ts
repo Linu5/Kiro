@@ -2,9 +2,7 @@ import { llmGenerate, llmStatus, CoreUnavailableError } from "../ipc";
 import type { AppSettings, LlmStatus } from "@/types";
 
 /**
- * Local model bridge. All traffic goes through the Rust core
- * (`commands/llm.rs`), which pins the endpoint to loopback by default; the
- * webview itself has no network permission.
+ * Model bridge supporting local Ollama (via Rust desktop core) and Cloud LLMs (via Groq API).
  */
 
 export class LlmUnavailableError extends Error {
@@ -14,13 +12,38 @@ export class LlmUnavailableError extends Error {
   }
 }
 
+const GROQ_MODELS = [
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
+  "mixtral-8x7b-32768",
+  "gemma2-9b-it",
+];
+
 export async function checkLlm(settings: AppSettings): Promise<LlmStatus> {
+  if (settings.llmProvider === "groq") {
+    const key = settings.groqApiKey?.trim();
+    if (!key) {
+      return {
+        reachable: false,
+        baseUrl: "https://api.groq.com",
+        models: GROQ_MODELS,
+        detail: "Groq API key not set in Settings.",
+      };
+    }
+    return {
+      reachable: true,
+      baseUrl: "https://api.groq.com",
+      models: GROQ_MODELS,
+      detail: "Connected to Groq Cloud API",
+    };
+  }
+
   try {
     return await llmStatus(settings.llmBaseUrl);
   } catch (error) {
     const detail =
       error instanceof CoreUnavailableError
-        ? "Browser preview mode: the local model bridge needs the desktop build."
+        ? "Browser mode: Select 'Groq Cloud API' in Settings or use desktop build for local Ollama."
         : String(error);
     return { reachable: false, baseUrl: settings.llmBaseUrl, models: [], detail };
   }
@@ -63,16 +86,68 @@ export interface GenerateJsonOptions {
   attempts?: number;
 }
 
-/**
- * Ask the local model for JSON, with one retry that restates the format
- * requirement. Throws `LlmUnavailableError` so callers can fall back to the
- * deterministic heuristics instead of failing the workflow.
- */
+async function generateGroqJson<T>(options: GenerateJsonOptions): Promise<{
+  value: T;
+  model: string;
+  elapsedMs: number;
+}> {
+  const apiKey = options.settings.groqApiKey?.trim();
+  if (!apiKey) {
+    throw new LlmUnavailableError(
+      "Groq API Key is missing. Please open Settings and enter your Groq API key.",
+    );
+  }
+
+  const model = options.settings.llmModel || "llama-3.3-70b-versatile";
+  const start = performance.now();
+
+  const systemContent = options.system
+    ? `${options.system}\nYou MUST return a valid JSON object.`
+    : "You MUST return a valid JSON object.";
+
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemContent },
+        { role: "user", content: options.prompt },
+      ],
+      response_format: { type: "json_object" },
+      temperature: options.temperature ?? 0.2,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new LlmUnavailableError(`Groq API error (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error("Groq API returned an empty response.");
+
+  const elapsedMs = Math.round(performance.now() - start);
+  return {
+    value: extractJson(content) as T,
+    model,
+    elapsedMs,
+  };
+}
+
 export async function generateJson<T>(options: GenerateJsonOptions): Promise<{
   value: T;
   model: string;
   elapsedMs: number;
 }> {
+  if (options.settings.llmProvider === "groq") {
+    return generateGroqJson<T>(options);
+  }
+
   const attempts = options.attempts ?? 2;
   let lastError: unknown;
 

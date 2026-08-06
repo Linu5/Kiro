@@ -393,8 +393,10 @@ export interface ReasoningTrace {
 // ---------------------------------------------------------------------------
 
 export interface AppSettings {
+  llmProvider: "ollama" | "groq";
   llmBaseUrl: string;
   llmModel: string;
+  groqApiKey: string;
   /** When false, no network request is made at all. */
   metadataEnabled: boolean;
   /** Number of claims promoted to a Socratic checkpoint. */

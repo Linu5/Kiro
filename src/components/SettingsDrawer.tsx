@@ -55,33 +55,83 @@ export function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () =
         </div>
 
         <div className="mt-6 space-y-5">
-          <Field
-            label="Local model endpoint"
-            hint="Loopback only. A non-local endpoint is refused by the Rust core unless SCC_ALLOW_REMOTE_LLM=1 is set for an institutional server."
-          >
-            <input
+          <Field label="AI Reasoning Engine" hint="Choose local desktop Ollama or Groq Cloud API for web deployments.">
+            <select
               className={inputClass}
-              value={settings.llmBaseUrl}
-              onChange={(event) => updateSettings({ llmBaseUrl: event.target.value })}
-              placeholder="http://127.0.0.1:11434"
-            />
+              value={settings.llmProvider ?? "ollama"}
+              onChange={(event) => {
+                const provider = event.target.value as "ollama" | "groq";
+                updateSettings({
+                  llmProvider: provider,
+                  ...(provider === "groq" && (!settings.llmModel || settings.llmModel === "llama3")
+                    ? { llmModel: "llama-3.3-70b-versatile" }
+                    : {}),
+                });
+              }}
+            >
+              <option value="ollama">Ollama (Local Desktop)</option>
+              <option value="groq">Groq Cloud API (Recommended for Vercel)</option>
+            </select>
           </Field>
 
-          <Field
-            label="Model"
-            hint={
-              llm?.models.length
-                ? `Available: ${llm.models.join(", ")}`
-                : "Run `ollama pull llama3` to install a model."
-            }
-          >
-            <input
-              className={inputClass}
-              value={settings.llmModel}
-              onChange={(event) => updateSettings({ llmModel: event.target.value })}
-              placeholder="llama3"
-            />
-          </Field>
+          {settings.llmProvider === "groq" ? (
+            <>
+              <Field
+                label="Groq API Key"
+                hint="Get a free key from console.groq.com"
+              >
+                <input
+                  type="password"
+                  className={inputClass}
+                  value={settings.groqApiKey ?? ""}
+                  onChange={(event) => updateSettings({ groqApiKey: event.target.value })}
+                  placeholder="gsk_..."
+                />
+              </Field>
+
+              <Field
+                label="Model"
+                hint="Recommended: llama-3.3-70b-versatile or llama-3.1-8b-instant"
+              >
+                <input
+                  className={inputClass}
+                  value={settings.llmModel}
+                  onChange={(event) => updateSettings({ llmModel: event.target.value })}
+                  placeholder="llama-3.3-70b-versatile"
+                />
+              </Field>
+            </>
+          ) : (
+            <>
+              <Field
+                label="Local model endpoint"
+                hint="Loopback only. A non-local endpoint is refused by the Rust core unless SCC_ALLOW_REMOTE_LLM=1 is set for an institutional server."
+              >
+                <input
+                  className={inputClass}
+                  value={settings.llmBaseUrl}
+                  onChange={(event) => updateSettings({ llmBaseUrl: event.target.value })}
+                  placeholder="http://127.0.0.1:11434"
+                />
+              </Field>
+
+              <Field
+                label="Model"
+                hint={
+                  llm?.models.length
+                    ? `Available: ${llm.models.join(", ")}`
+                    : "Run `ollama pull llama3` to install a model."
+                }
+              >
+                <input
+                  className={inputClass}
+                  value={settings.llmModel}
+                  onChange={(event) => updateSettings({ llmModel: event.target.value })}
+                  placeholder="llama3"
+                />
+              </Field>
+            </>
+          )}
 
           <div className="flex items-center justify-between gap-4 rounded-xl border border-hairline bg-panel-muted px-4 py-3">
             <div>

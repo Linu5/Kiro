@@ -229,8 +229,10 @@ export async function deleteSavedTrace(documentId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  llmProvider: "ollama",
   llmBaseUrl: "http://127.0.0.1:11434",
   llmModel: "llama3",
+  groqApiKey: "",
   metadataEnabled: true,
   checkpointBudget: 8,
   studentName: "",
