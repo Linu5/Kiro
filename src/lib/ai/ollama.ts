@@ -19,22 +19,30 @@ const GROQ_MODELS = [
   "gemma2-9b-it",
 ];
 
+export function getGroqApiKey(settings: AppSettings): string | undefined {
+  return settings.groqApiKey?.trim() || (import.meta.env.VITE_GROQ_API_KEY as string | undefined)?.trim() || undefined;
+}
+
 export async function checkLlm(settings: AppSettings): Promise<LlmStatus> {
-  if (settings.llmProvider === "groq") {
-    const key = settings.groqApiKey?.trim();
-    if (!key) {
+  const apiKey = getGroqApiKey(settings);
+  const isGroq = settings.llmProvider === "groq" || Boolean(apiKey);
+
+  if (isGroq) {
+    if (!apiKey) {
       return {
         reachable: false,
         baseUrl: "https://api.groq.com",
         models: GROQ_MODELS,
-        detail: "Groq API key not set in Settings.",
+        detail: "Groq selected. Set VITE_GROQ_API_KEY in project environment or Settings.",
       };
     }
     return {
       reachable: true,
       baseUrl: "https://api.groq.com",
       models: GROQ_MODELS,
-      detail: "Connected to Groq Cloud API",
+      detail: (import.meta.env.VITE_GROQ_API_KEY as string | undefined)?.trim()
+        ? "Connected via global VITE_GROQ_API_KEY environment variable"
+        : "Connected to Groq Cloud API",
     };
   }
 
@@ -43,7 +51,7 @@ export async function checkLlm(settings: AppSettings): Promise<LlmStatus> {
   } catch (error) {
     const detail =
       error instanceof CoreUnavailableError
-        ? "Browser mode: Select 'Groq Cloud API' in Settings or use desktop build for local Ollama."
+        ? "Browser mode: Set VITE_GROQ_API_KEY in Vercel environment variables or use desktop build for local Ollama."
         : String(error);
     return { reachable: false, baseUrl: settings.llmBaseUrl, models: [], detail };
   }
@@ -91,10 +99,10 @@ async function generateGroqJson<T>(options: GenerateJsonOptions): Promise<{
   model: string;
   elapsedMs: number;
 }> {
-  const apiKey = options.settings.groqApiKey?.trim();
+  const apiKey = getGroqApiKey(options.settings);
   if (!apiKey) {
     throw new LlmUnavailableError(
-      "Groq API Key is missing. Please open Settings and enter your Groq API key.",
+      "Groq API Key is missing. Please set VITE_GROQ_API_KEY in Vercel environment variables or enter a key in Settings.",
     );
   }
 
@@ -144,7 +152,8 @@ export async function generateJson<T>(options: GenerateJsonOptions): Promise<{
   model: string;
   elapsedMs: number;
 }> {
-  if (options.settings.llmProvider === "groq") {
+  const apiKey = getGroqApiKey(options.settings);
+  if (options.settings.llmProvider === "groq" || Boolean(apiKey)) {
     return generateGroqJson<T>(options);
   }
 

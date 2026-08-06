@@ -77,15 +77,19 @@ export function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () =
           {settings.llmProvider === "groq" ? (
             <>
               <Field
-                label="Groq API Key"
-                hint="Get a free key from console.groq.com"
+                label="Groq API Key (Optional Override)"
+                hint={
+                  (import.meta.env.VITE_GROQ_API_KEY as string | undefined)?.trim()
+                    ? "✓ Active via project environment variable (VITE_GROQ_API_KEY)."
+                    : "Set VITE_GROQ_API_KEY in Vercel environment variables or enter key here."
+                }
               >
                 <input
                   type="password"
                   className={inputClass}
                   value={settings.groqApiKey ?? ""}
                   onChange={(event) => updateSettings({ groqApiKey: event.target.value })}
-                  placeholder="gsk_..."
+                  placeholder={(import.meta.env.VITE_GROQ_API_KEY as string | undefined)?.trim() ? "•••••••• (Configured via Environment)" : "gsk_..."}
                 />
               </Field>
 
